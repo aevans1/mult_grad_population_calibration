@@ -18,6 +18,7 @@ authors = [
 name = "parsimonious_ensembles"
 version = "0.0.2"
 dependencies = [
+    "jaxopt",
     "numpy",
     "numpyro",
     "equinox",
