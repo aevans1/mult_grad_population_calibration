@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = [
+    "src/parsimonious_ensembles",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/parsimonious_ensembles",
+]
+[project]
+authors = [
+   { name = "Luke Evans", email = "levans@flatironinstitute.org"}
+]
+name = "parsimonious_ensembles"
+version = "0.0.2"
+dependencies = [
+    "numpy",
+    "numpyro",
+    "equinox",
+    "logging",
+    "jax_dataloader",
+    "matplotlib"
+]
