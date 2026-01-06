@@ -9,8 +9,8 @@ source VENVS_DIR/parsimonious_ensembles/bin/activate
 - After activating a virtual environment: 
   - install JAX with either CPU or GPU support. 
   - clone the directory and install the repository package with pip. This can be be done via:
-```
-git clone https://github.com/aevans1/parsimonious_ensembles.git
-cd parsimonious_ensembles
-python -m pip install .
-```
+    ```
+    git clone https://github.com/aevans1/parsimonious_ensembles.git
+    cd parsimonious_ensembles
+    python -m pip install .
+    ```
