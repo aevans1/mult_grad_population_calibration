@@ -80,12 +80,12 @@ def multiplicative_gradient(
 
     num_images, num_structures = log_likelihood.shape
 
-    # Initialize Weights
+    ## Initialize Weights
     weights = (1/num_structures)*jnp.ones(num_structures)
 
-    # Subtracting the largest entry from each row of likelihood
-    # The gradient is invariant to row scaling of likelihood, so this is valid
-    # With this, we avoid working in log space for the grad and loss
+    ## Subtracting the largest entry from each row of likelihood
+    ## The gradient is invariant to row scaling of likelihood, so this is valid
+    ## With this, we avoid working in log space for the grad and loss
     log_likelihood = log_likelihood - jnp.max(log_likelihood, 1)[:, jnp.newaxis]
 
     # NOTE: we cannot exponentiate this if previous step hasn't happened!
@@ -110,10 +110,10 @@ def multiplicative_gradient(
             print(f"loss: {loss}")
             print("\n")
 
-        # Update grad
+        ## Update grad
         grad = grad_log_prob(weights, likelihood)
 
-        # Check stopping criterion
+        ## Check stopping criterion
         # TODO: swap out?
         gap = jnp.max(grad) - 1
         info["gaps"].append(gap)
@@ -122,10 +122,10 @@ def multiplicative_gradient(
             print(f"#iterations at exit: {k}")
             break
 
-        # Update weights
+        ## Update weights
         weights = weights*grad
 
-    # Collect info in array format, and save weights and corrspeonding indices if requested
+    ## Collect info in array format, and save weights and corresponding indices if requested
     info["final_idx"] = k
     info["losses"] = jnp.stack(info["losses"])
     info["gaps"] = jnp.stack(info["gaps"])
