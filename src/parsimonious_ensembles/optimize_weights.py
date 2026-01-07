@@ -8,9 +8,9 @@ def grad_log_prob(weights, likelihood):
     Evaluate the gradient of the log-likelihood of the data given the weights.
 
     This computes the "probabilistic model" for the image prob density with weights w
-    - \sum_m p(y_i |x_m) w_m  
-    And then computes the gradient of \sum_i (1/num_images)*log (\sum_m p(y_i|x_m) w_m)
-    - (1/num_images)*p(y_i|x_m) / \sum_m p(y_i | x_m) w_m
+    - \sum_m p(y_i |x_j) w_j 
+    And then computes the gradient of \sum_i (1/num_images)*log (\sum_m p(y_i|x_j) w_j)
+    - (1/num_images)*p(y_i|x_j) / \sum_m p(y_i | x_j) w_j
 
     Parameters
     ----------
@@ -35,6 +35,13 @@ def update_weights(weights, grad):
     weights = weights*grad
     return weights
 
+@jax.jit
+def compute_loss(weights, likelihood):
+    return -jnp.mean(jnp.log(jnp.sum(likelihood*weights, axis=1)))
+
+@jax.jit
+def compute_loss_log_likelihood(weights, log_likelihood):
+    return -jnp.mean(jax.scipy.special.logsumexp(a=log_likelihood,b=weights[None, :], axis=1))
 
 @jax.jit
 def update_info(
@@ -43,7 +50,7 @@ def update_info(
     reference_weights=None
 ):
     # TODO: other stats will go in here
-    loss = -jnp.mean(jnp.log(jnp.sum(likelihood*weights, axis=1)))
+    loss = compute_loss(weights, likelihood)
     return loss
 
 
@@ -95,7 +102,7 @@ def multiplicative_gradient(
     info = {}
     info["losses"] = []
     info["gaps"] = []
-    info["weights"] = [weights] # Start with initial weights
+    info["weights"] = []
     for k in range(max_iterations):
         # Update info
         loss = update_info(weights, likelihood)
