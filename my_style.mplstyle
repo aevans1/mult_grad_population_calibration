@@ -3,16 +3,16 @@ font.family : "sans-serif"
 font.sans-serif : "DejaVu Sans"
 axes.titlesize : 20
 axes.labelsize : 20
-xtick.labelsize : 20
-ytick.labelsize : 20
+xtick.labelsize : 16
+ytick.labelsize : 16
 legend.fontsize : 20
 lines.linewidth : 2
 lines.markersize : 6
 axes.linewidth : 4
 xtick.major.width : 4
 ytick.major.width : 4
-xtick.major.size : 12
-ytick.major.size : 12
+xtick.major.size : 8
+ytick.major.size : 8
 legend.facecolor : 'white'
 legend.edgecolor : 'white'
 legend.frameon : False

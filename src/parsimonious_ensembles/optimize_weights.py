@@ -43,7 +43,7 @@ def update_info(
     reference_weights=None
 ):
     # TODO: other stats will go in here
-    loss = -jnp.mean(jnp.log(likelihood*weights), axis=1)
+    loss = -jnp.mean(jnp.log(jnp.sum(likelihood*weights, axis=1)))
     return loss
 
 
@@ -51,9 +51,9 @@ def multiplicative_gradient(
     log_likelihood,
     tol=1e-2,
     max_iterations=100000,
-    info_frequency=100,
+    weights_frequency=0,
     VERBOSE=False,
-    TRACK_WEIGHTS=False
+    
 ):
     """
     Optimizes the weights with the multiplicative gradient method.
@@ -68,11 +68,11 @@ def multiplicative_gradient(
         Max iterations if stopping criteria isn't met
     info_frequency: int
         Stats are computed at every (stats frequency) iterations
+    weights_frequency: int
+        if larger than 0, weights are saved at every weights_frequency iterations
     VERBOSE: bool
         If TRUE, some print statements will happen every info_frequency iterations
-    TRACK_WEIGHTS: bool
-        If TRUE, the weights at every info_frequency iterations will be saved
-
+    
     Returns
     -------
     weights: jax.Array 
@@ -94,42 +94,44 @@ def multiplicative_gradient(
     # Initialize info tracked
     info = {}
     info["losses"] = []
-    info["idx"] = []
-    info["weights"] = []
+    info["gaps"] = []
+    info["weights"] = [weights] # Start with initial weights
     for k in range(max_iterations):
-
         # Update info
-        if k % info_frequency == 0:
-            loss = update_info(weights, likelihood)
-            info["losses"].append(loss)
-            info["idx"].append(k)
-            # info["your_favorite_stat"].append(...)
+        loss = update_info(weights, likelihood)
+        info["losses"].append(loss)
+        # info["your_favorite_stat"].append(...)
 
-            if TRACK_WEIGHTS:
-                info["weights"].append(weights)
+        if weights_frequency > 0 and k % weights_frequency == 0:
+            info["weights"].append(weights)
 
-            if VERBOSE:
-                print(f"#iterations: {k}")
-                print(f"loss: {loss}")
-                print("\n")
+        if VERBOSE:
+            print(f"#iterations: {k}")
+            print(f"loss: {loss}")
+            print("\n")
 
-        # Update weights
+        # Update grad
         grad = grad_log_prob(weights, likelihood)
-        weights = weights*grad
 
         # Check stopping criterion
         # TODO: swap out?
         gap = jnp.max(grad) - 1
+        info["gaps"].append(gap)
         if gap < tol:
             print("exiting!")
             print(f"#iterations at exit: {k}")
             break
 
-    # Collect stats in array format
+        # Update weights
+        weights = weights*grad
+
+    # Collect info in array format, and save weights and corrspeonding indices if requested
+    info["final_idx"] = k
     info["losses"] = jnp.stack(info["losses"])
-    info["idx"] = jnp.stack(info["idx"])
-    if TRACK_WEIGHTS:
+    info["gaps"] = jnp.stack(info["gaps"])
+    if weights_frequency > 0:
         info["weights"] = jnp.stack(info["weights"])
+        info["weights_idx"] = jnp.arange(0, k, weights_frequency)
     return weights, info
 
 
