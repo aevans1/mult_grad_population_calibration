@@ -115,25 +115,34 @@ def multiplicative_gradient(
     # note: we cannot exponentiate this if previous step hasn't happened!
     likelihood = jnp.exp(log_likelihood)
 
-    # initialize scaling for gap stopping criteria
-    gap_scale = scaled_gap(grad_log_prob(weights, likelihood), weights, scale=1)
-
     # Do cross_validation index picking
-    print("Getting cross validation stopping index")
-    cross_val_idx = multiplicative_gradient_cross_val(
-                    log_likelihood,
-                    lag=2,
-                    max_iterations=max_iterations,
-                    split_seed=split_seed,
-                    train_pct = 0.8)   
+    if cross_val:
+        print("Getting cross validation stopping index")
+        cross_val_idx = multiplicative_gradient_cross_val(
+                        log_likelihood,
+                        lag=2,
+                        max_iterations=max_iterations,
+                        split_seed=split_seed,
+                        train_pct = 0.8)   
+
+    else:
+        cross_val_idx = max_iterations - 1
 
     # initialize info tracked
     info = {}
     info["losses"] = []
     info["gaps"] = []
-    info["gap_idx"] = max_iterations-1
+    info["gap_idx"] = max_iterations - 1
     info["cross_val_idx"] = cross_val_idx
     info["weights"] = []
+
+    # initialize scaling for gap stopping criteria
+    gap_scale = scaled_gap(grad_log_prob(weights, likelihood), weights, scale=1)
+
+    # initialize stopping criteria checks
+    reached_gap = False 
+    reached_cross_val_idx = False
+
     for k in range(max_iterations):
         # update info
         loss = update_info(weights, likelihood)
@@ -155,24 +164,21 @@ def multiplicative_gradient(
         gap = scaled_gap(grad, weights, gap_scale)
         info["gaps"].append(gap)
         
-        #TODO: make stopping that hits both cross val and grad stopping 
-        #if gap < tol:
-        #    print(f"gap tolerance met, at idx: {k}")
-        ##    print("exiting")
-        #    info["gap_idx"] = k
-        #    info["weights_gap_idx"] = weights
-        
-        #if k == cross_val_idx and gap :
-        #    print("exiting")
-        #    break  
-        
-        #if gap < tol:
-        #    print(f"gap tolerance met, at idx: {k}")
-        #    print("exiting")
-        #    info["gap_idx"] = k
-        #    info["weights_gap_idx"] = weights
-        #    break
+        if gap < tol and not reached_gap:
+            print(f"reached gap tolerance, at idx: {k}")
+            print(f"gap: {gap}")
+            info["gap_idx"] = k
+            info["weights_gap_idx"] = weights
+            reached_gap = True 
 
+        if k == cross_val_idx:
+            print("reached cross-validation idx")
+            reached_cross_val_idx = True
+        
+        if reached_cross_val_idx and reached_gap:
+            print("exiting!") 
+            break
+      
         ## update weights
         weights = update_weights(weights, grad)
 
