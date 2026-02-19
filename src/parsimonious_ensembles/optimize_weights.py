@@ -1,7 +1,8 @@
 import jax
 import jax.numpy as jnp
 
-from parsimonious_ensembles.utils import cross_val_split, find_increase
+from parsimonious_ensembles.utils import cross_val_split
+
 
 @jax.jit
 def grad_log_prob(weights, likelihood):
@@ -9,9 +10,9 @@ def grad_log_prob(weights, likelihood):
     Evaluate the gradient of the log-likelihood of the data given the weights.
 
     This computes the "probabilistic model" for the image prob density with weights w
-    - \sum_m p(y_i |x_j) w_j 
-    And then computes the gradient of \sum_i (1/num_images)*log (\sum_m p(y_i|x_j) w_j)
-    - (1/num_images)*p(y_i|x_j) / \sum_m p(y_i | x_j) w_j
+    - sum_m p(y_i |x_j) w_j 
+    And then computes the gradient of sum_i (1/num_images)*log (sum_m p(y_i|x_j) w_j)
+    - (1/num_images)*p(y_i|x_j) / sum_m p(y_i | x_j) w_j
 
     Parameters
     ----------
@@ -33,27 +34,40 @@ def grad_log_prob(weights, likelihood):
 
 @jax.jit
 def update_weights(weights, grad):
+    """
+    Do the multiplicative weight update
+    """
     weights = weights*grad
     return weights
 
-@jax.jit
-def compute_loss(weights, likelihood):
-    #return -jnp.mean(jnp.log(jnp.sum(likelihood*weights, axis=1)))
-    return -jnp.mean(jnp.log(likelihood @ weights))
 
 @jax.jit
-def compute_loss_log_likelihood(weights, log_likelihood):
-    return -jnp.mean(jax.scipy.special.logsumexp(a=log_likelihood,b=weights[None, :], axis=1))
+def compute_loss(weights, likelihood):
+    return -jnp.mean(jnp.log(likelihood @ weights))
+
+
+@jax.jit
+def normalize_log_likeli_to_likeli(log_likelihood):
+
+    # subtracting the largest entry from each row of likelihood
+    # the gradient is invariant to row scaling of likelihood, so this is valid
+    # with this, we avoid working in log space for the grad and loss
+    log_likelihood -= jnp.max(log_likelihood, 1)[:, jnp.newaxis]
+
+    # note: we cannot exponentiate this if previous step hasn't happened!
+    likelihood = jnp.exp(log_likelihood)
+    return likelihood
+
 
 @jax.jit
 def update_info(
     weights,
     likelihood,
-    reference_weights=None
 ):
     # TODO: other stats will go in here
     loss = compute_loss(weights, likelihood)
     return loss
+
 
 @jax.jit
 def scaled_gap(grad, weights, scale):
@@ -69,10 +83,9 @@ def multiplicative_gradient(
     tol=1e-2,
     max_iterations=100000,
     weights_frequency=0,
-    split_seed = 119,
+    split_seed=119,
     cross_val=True,
     verbose=False,
-    
 ):
     """
     optimizes the weights with the multiplicative gradient method.
@@ -96,7 +109,7 @@ def multiplicative_gradient(
         then compared with the gap stopping criteria
     verbose: bool
         if true, some print statements will happen every info_frequency iterations
-    
+
     returns
     -------
     weights: jax.array 
@@ -104,26 +117,21 @@ def multiplicative_gradient(
 
     num_images, num_structures = log_likelihood.shape
 
-    ## initialize weights
+    # Initialize weights
     weights = (1/num_structures)*jnp.ones(num_structures)
 
-    ## subtracting the largest entry from each row of likelihood
-    ## the gradient is invariant to row scaling of likelihood, so this is valid
-    ## with this, we avoid working in log space for the grad and loss
-    log_likelihood = log_likelihood - jnp.max(log_likelihood, 1)[:, jnp.newaxis]
-
-    # note: we cannot exponentiate this if previous step hasn't happened!
-    likelihood = jnp.exp(log_likelihood)
+    # Convert log likelihood to likelihood via "soft-max"-ish operation
+    likelihood = normalize_log_likeli_to_likeli(log_likelihood)
 
     # Do cross_validation index picking
     if cross_val:
         print("Getting cross validation stopping index")
         cross_val_idx = multiplicative_gradient_cross_val(
-                        log_likelihood,
-                        lag=2,
-                        max_iterations=max_iterations,
-                        split_seed=split_seed,
-                        train_pct = 0.8)   
+            log_likelihood,
+            lag=2,
+            max_iterations=max_iterations,
+            split_seed=split_seed,
+            train_pct=0.8)
 
     else:
         cross_val_idx = max_iterations - 1
@@ -137,10 +145,11 @@ def multiplicative_gradient(
     info["weights"] = []
 
     # initialize scaling for gap stopping criteria
-    gap_scale = scaled_gap(grad_log_prob(weights, likelihood), weights, scale=1)
+    gap_scale = scaled_gap(grad_log_prob(
+        weights, likelihood), weights, scale=1)
 
     # initialize stopping criteria checks
-    reached_gap = False 
+    reached_gap = False
     reached_cross_val_idx = False
 
     for k in range(max_iterations):
@@ -149,46 +158,58 @@ def multiplicative_gradient(
         info["losses"].append(loss)
         # info["your_favorite_stat"].append(...)
 
+        # check if saving weights
         if weights_frequency > 0 and k % weights_frequency == 0:
             info["weights"].append(weights)
 
+        # check if printing info
         if verbose:
             print(f"#iterations: {k}")
             print(f"loss: {loss}")
             print("\n")
 
-        ## update grad
+        # update grad
         grad = grad_log_prob(weights, likelihood)
 
-        ## check stopping criterion
+        # check stopping criterions
         gap = scaled_gap(grad, weights, gap_scale)
         info["gaps"].append(gap)
-        
+
+        # check the gradient gap
         if gap < tol and not reached_gap:
             print(f"reached gap tolerance, at idx: {k}")
             print(f"gap: {gap}")
             info["gap_idx"] = k
             info["weights_gap_idx"] = weights
-            reached_gap = True 
+            reached_gap = True
+            if not cross_val:
+                print("exiting!")
+                break
 
-        if k == cross_val_idx:
-            print("reached cross-validation idx")
+        # check the cross validation step
+        if k == cross_val_idx and cross_val:
+            print(f"reached cross-validation idx, at idx: {k}")
+            info["weights_cross_val_idx"] = weights
             reached_cross_val_idx = True
-        
+
+        # check if all stopping criteria met
         if reached_cross_val_idx and reached_gap:
-            print("exiting!") 
+            print("exiting!")
             break
-      
-        ## update weights
+
+        # update weights
         weights = update_weights(weights, grad)
 
-    ## collect info in array format, and save weights and corresponding indices if requested
+    # collect info in array format, and save weights and corresponding indices if requested
     info["final_idx"] = k
     info["losses"] = jnp.stack(info["losses"])
     info["gaps"] = jnp.stack(info["gaps"])
     if weights_frequency > 0:
         info["weights"] = jnp.stack(info["weights"])
         info["weights_idx"] = jnp.arange(0, k, weights_frequency)
+
+    if not reached_gap:
+        info["weights_gap_idx"] = weights
     return weights, info
 
 
@@ -197,7 +218,7 @@ def multiplicative_gradient_cross_val(
     lag=2,
     max_iterations=10000,
     split_seed=298,
-    train_pct = 0.8
+    train_pct=0.8
 ):
     """
     Rudimentary cross validation for finding a stopping index 
@@ -209,7 +230,7 @@ def multiplicative_gradient_cross_val(
         log-likelihood of generating image i from conformation j.
     max_iterations: int
         max iterations if stopping criteria isn't met
-    
+
     returns
     -------
     stopping_idx: int
@@ -217,17 +238,17 @@ def multiplicative_gradient_cross_val(
     num_images, num_structures = log_likelihood.shape
 
     key = jax.random.PRNGKey(split_seed)
-    log_likelihood_train, log_likelihood_test, _, _ = cross_val_split(key, 
-                                                                      log_likelihood, 
+    log_likelihood_train, log_likelihood_test, _, _ = cross_val_split(key,
+                                                                      log_likelihood,
                                                                       train_pct)
 
-    ## subtracting the largest entry from each row of likelihood
-    ## the gradient is invariant to row scaling of likelihood, so this is valid
-    ## with this, we avoid working in log space for the grad and loss
+    # subtracting the largest entry from each row of likelihood
+    # the gradient is invariant to row scaling of likelihood, so this is valid
+    # with this, we avoid working in log space for the grad and loss
     log_likelihood_train -= jnp.amax(log_likelihood_train, axis=1)[:, None]
     log_likelihood_test -= jnp.amax(log_likelihood_test, axis=1)[:, None]
 
-    ## initialize weights
+    # initialize weights
     weights = (1/num_structures)*jnp.ones(num_structures)
 
     # note: we cannot exponentiate this if previous step hasn't happened!
@@ -237,26 +258,22 @@ def multiplicative_gradient_cross_val(
     # Initialize cross validation
     count = 0
     for k in range(max_iterations):
-    
-        ## update grad
+
+        # update grad
         grad = grad_log_prob(weights, likelihood_train)
 
-        ## update weights
+        # update weights
         weights_new = update_weights(weights, grad)
 
-        ## check stopping criterion: increase in validation loss
-        losses_diff = compute_loss(weights_new, likelihood_test) - compute_loss(weights, likelihood_test)
-        print(losses_diff)
+        # check stopping criterion: increase in validation loss
+        losses_diff = compute_loss(
+            weights_new, likelihood_test) - compute_loss(weights, likelihood_test)
         if losses_diff > 0:
-            print('increase')
-            count +=1 
+            count += 1
         else:
             count = 0
         if count > lag:
             break
         weights = weights_new
-    
+
     return k
-
-
-
