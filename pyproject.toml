@@ -24,5 +24,6 @@ dependencies = [
     "equinox",
     "logging",
     "jax_dataloader",
-    "matplotlib"
+    "matplotlib",
+    "pytest"
 ]
