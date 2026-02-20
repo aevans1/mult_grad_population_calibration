@@ -4,18 +4,18 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 include = [
-    "src/parsimonious_ensembles",
+    "src/mult_grad_population_calibration",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "src/parsimonious_ensembles",
+    "src/mult_grad_population_calibration",
 ]
 [project]
 authors = [
    { name = "Luke Evans", email = "levans@flatironinstitute.org"}
 ]
-name = "parsimonious_ensembles"
+name = "mult_grad_population_calibration"
 version = "0.0.2"
 dependencies = [
     "jaxopt",
