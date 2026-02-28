@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import jax
+from scipy.stats import norm
 
 
 def cross_val_split(key, log_likelihood, train_pct=0.8):
@@ -58,7 +59,7 @@ def normalize_log_likeli_to_likeli(log_likelihood):
     -------
     likelihood: jax.Array
     """
-    log_likelihood -= jnp.max(log_likelihood, 1)[:, None]
+    log_likelihood -= jnp.amax(log_likelihood, axis=1)[:, None]
     likelihood = jnp.exp(log_likelihood)
     return likelihood
 

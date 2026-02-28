@@ -181,7 +181,7 @@ def multiplicative_gradient(
     if CROSS_VALIDATE:
         if VERBOSE:
             print("Getting cross validation stopping index")
-        cross_val_idx, _, _ = multiplicative_gradient_cross_val(
+        cross_val_idx = multiplicative_gradient_cross_val(
             log_likelihood,
             lag=3,
             max_iterations=max_iterations,
@@ -220,9 +220,10 @@ def multiplicative_gradient(
                 print(f"gap: {gap}")
          
         # check the cross validation step
-        if k == cross_val_idx and CROSS_VALIDATE:
-            info["weights_cross_val"] = weights
-            REACHED_CROSS_VAL = True
+        if CROSS_VALIDATE:
+            if k == cross_val_idx:
+                info["weights_cross_val"] = weights
+                REACHED_CROSS_VAL = True
 
         # check if all stopping criteria met
         if REACHED_CROSS_VAL and REACHED_GAP:
@@ -258,7 +259,7 @@ def multiplicative_gradient_cross_val(
     max_iterations=10000,
     split_seed=298,
     train_pct=0.8,
-    smooth_val=0.8
+    smooth_val=0.2
 ):
     """
     Rudimentary cross validation for finding a stopping index 
