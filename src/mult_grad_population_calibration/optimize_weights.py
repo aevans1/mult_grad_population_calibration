@@ -186,8 +186,6 @@ def multiplicative_gradient(
             lag=3,
             max_iterations=max_iterations,
             split_seed=split_seed,
-            train_pct=0.8,
-            smooth_val=0.1 
             )
         info["cross_val_idx"] = cross_val_idx
         if VERBOSE: 
@@ -255,10 +253,10 @@ def multiplicative_gradient(
 # TODO: fix docstring below
 def multiplicative_gradient_cross_val(
     log_likelihood,
-    lag=3,
+    lag=2,
     max_iterations=10000,
     split_seed=298,
-    train_pct=0.8,
+    train_pct=0.5,
     smooth_val=0.2
 ):
     """
