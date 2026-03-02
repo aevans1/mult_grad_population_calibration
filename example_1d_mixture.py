@@ -56,7 +56,12 @@ def main():
 
     # Compute weights
     key, subkey = jax.random.split(key)
-    weights, info = opt.multiplicative_gradient(log_likelihood, max_iterations=10000, weights_frequency=1, VERBOSE=True, cross_val_key=key, CROSS_VALIDATE=True)
+    weights, info = opt.multiplicative_gradient(log_likelihood, 
+                                                max_iterations=10000, 
+                                                weights_frequency=1, 
+                                                VERBOSE=True, 
+                                                cross_val_key=key, 
+                                                CROSS_VALIDATE=True)
     
     plot_weights_and_info(nodes, info, true_weights)
     plt.show()
