@@ -118,13 +118,14 @@ def scaled_gap(grad, weights, scale):
     return (jnp.amax(grad) - 1) / scale
 
 
+# TODO: behavaior for CROSS_VALIDATE versus gradient gap
 def multiplicative_gradient(
     log_likelihood,
     tol=1e-2,
     max_iterations=10000,
     weights_frequency=0,
     cross_val_key=None,
-    MODE="gap",
+    CROSS_VALIDATE=False,
     VERBOSE=False,
 ):
     """
@@ -135,17 +136,19 @@ def multiplicative_gradient(
     log_likelihood: jax.array
         log-likelihood of generating data point i from node j.
     tol: float
-        tolerance for the stopping criteria, applies if mode="gap"
+        tolerance for the stopping criteria
     max_iterations: int
         max iterations if stopping criteria isn't met
     weights_frequency: int
         if larger than 0, weights are saved at every weights_frequency iterations
-    cross_val_key: jax.PRNG Key
-        used for cross-val if mode="cross_val" 
-    mode: string 
-        determines stopping criteria. if "gap": stops at gradient tol. if "cross-val", stops at cross-val
+    cross_val_key: jax.PRNGKey
+        key for splitting into train, split for cross validation
+    CROSS_VALIDATE: bool
+        If true, a stopping index based on cross validation will be picked,
+        then compared with the gap stopping criteria
     VERBOSE: bool
         if true, some print statements will happen every info_frequency iterations
+
     Returns
     -------
     weights: jax.array 
@@ -167,14 +170,16 @@ def multiplicative_gradient(
     info["weights"] = []
 
     # initialize scaling for gap stopping criteria
-    if MODE =="gap":
-        if VERBOSE:
-            print("Getting gap validation stopping index")
-        gap_scale = scaled_gap(compute_grad(
-            weights, likelihood), weights, scale=1.0)
+    gap_scale = scaled_gap(compute_grad(
+        weights, likelihood), weights, scale=1.0)
+
+    # initialize stopping criteria checks
+    REACHED_GAP = False
+    REACHED_CROSS_VAL = not CROSS_VALIDATE
+
 
     # Do cross_validation index picking
-    if MODE =="cross_validate":
+    if CROSS_VALIDATE:
         if VERBOSE:
             print("Getting cross validation stopping index")
         cross_val_idx = multiplicative_gradient_cross_val(
@@ -187,7 +192,6 @@ def multiplicative_gradient(
         if VERBOSE: 
             print(f"Validation loss increases at idx: {cross_val_idx}")
     
-    REACHED_STOPPING_CRITERIA=False
     for k in range(max_iterations):
         # update info
         loss = update_info(weights, likelihood)
@@ -201,24 +205,31 @@ def multiplicative_gradient(
         # update grad
         grad = compute_grad(weights, likelihood)
 
-        # check the stopping criteria
+        # check stopping criterions
         gap = scaled_gap(grad, weights, gap_scale)
         info["gaps"].append(gap)
 
-        if MODE=="gap" and gap < tol:
+        # check the gradient gap, if tolerance not met yet
+        if not REACHED_GAP and gap < tol:
             info["gap_idx"] = k
             info["weights_gap"] = weights
+            REACHED_GAP = True
             if VERBOSE:
                 print(f"reached gap tolerance, at idx: {k}")
                 print(f"gap: {gap}")
-            REACHED_STOPPING_CRITERIA=True
-            break 
-        elif MODE=="cross_val" and k==cross_val_idx:
+         
+        # check the cross validation step
+        if CROSS_VALIDATE:
+            if k == cross_val_idx:
+                info["weights_cross_val"] = weights
+                REACHED_CROSS_VAL = True
+
+        # check if all stopping criteria met
+        if REACHED_CROSS_VAL and REACHED_GAP:
             if VERBOSE:
-                print(f"reached cross-val idx, at idx: {k}")
-            REACHED_STOPPING_CRITERIA=True
-            break 
-        
+                print(f"exiting! At iteration: {k}")
+            break
+
         # update weights
         weights = update_weights(weights, grad)
 
@@ -230,7 +241,8 @@ def multiplicative_gradient(
         info["weights"] = jnp.stack(info["weights"])
         info["weights_idx"] = jnp.arange(0, k, weights_frequency)
 
-    if not REACHED_STOPPING_CRITERIA:
+    #print(f"REACHED GAP: {REACHED_GAP}")
+    if not REACHED_GAP:
         print("Terminated at max iters: ")
         print("Returned weights & 'info[weights_gap']' are weights at max_iterations")
         info["weights_gap"] = weights
@@ -245,7 +257,7 @@ def multiplicative_gradient_cross_val(
     wait_time=2,
     max_iterations=10000,
     train_pct=0.8,
-    smooth_val=0.2
+    smooth_val=0.3
 ):
     """
     Rudimentary cross validation for finding a stopping index 
@@ -289,7 +301,7 @@ def multiplicative_gradient_cross_val(
         val_loss_new = compute_loss(weights_new, likelihood_test)
 
         # smooth, if iterated past the soft assignment weights
-        if k > 2:
+        if k > 1:
             smoothed_val_loss_new = (smooth_val)*val_loss_new + (1-smooth_val)*smoothed_val_loss
         else:
             smoothed_val_loss_new = val_loss_new 

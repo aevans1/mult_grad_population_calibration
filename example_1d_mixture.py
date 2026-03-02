@@ -20,7 +20,7 @@ def main():
     colors = prop_cycle.by_key()['color'] # Save color list for reference
 
     # Set up gaussian mixture model
-    seed = 1
+    seed = 1234
     weights = [0.3, 0.7]
     means = [-1.0, 1.0]
     stds = [0.5, 0.5]
@@ -55,7 +55,8 @@ def main():
     log_likelihood = -1*(data[:, None] - nodes[None, :])**2 / (2*noise_std_dev**2)
 
     # Compute weights
-    ensemble_weights, info = opt.multiplicative_gradient(log_likelihood, max_iterations = 10000, weights_frequency=1, VERBOSE=True)
+    key, subkey = jax.random.split(key)
+    weights, info = opt.multiplicative_gradient(log_likelihood, max_iterations=10000, weights_frequency=1, VERBOSE=True, cross_val_key=key, CROSS_VALIDATE=True)
     
     plot_weights_and_info(nodes, info, true_weights)
     plt.show()
