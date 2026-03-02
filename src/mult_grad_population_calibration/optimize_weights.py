@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from mult_grad_population_calibration.utils import cross_val_split, normalize_log_likeli_to_likeli
+from mult_grad_population_calibration.utils import train_test_split, normalize_log_likeli_to_likeli
 
 
 @jax.jit
@@ -118,14 +118,14 @@ def scaled_gap(grad, weights, scale):
     return (jnp.amax(grad) - 1) / scale
 
 
-# TODO: behavaior for CROSS_VALIDATE versus gradient gap
+# TODO: behavaior for TRAIN_TEST versus gradient gap
 def multiplicative_gradient(
     log_likelihood,
     tol=1e-2,
     max_iterations=10000,
     weights_frequency=0,
-    cross_val_key=None,
-    CROSS_VALIDATE=False,
+    train_test_key=None,
+    TRAIN_TEST=False,
     VERBOSE=False,
 ):
     """
@@ -141,10 +141,10 @@ def multiplicative_gradient(
         max iterations if stopping criteria isn't met
     weights_frequency: int
         if larger than 0, weights are saved at every weights_frequency iterations
-    cross_val_key: jax.PRNGKey
-        key for splitting into train, split for cross validation
-    CROSS_VALIDATE: bool
-        If true, a stopping index based on cross validation will be picked,
+    train_test_key: jax.PRNGKey
+        key for splitting into train, split for train test procedure
+    TRAIN_TEST: bool
+        If true, a stopping index based on train test procedure will be picked,
         then compared with the gap stopping criteria
     VERBOSE: bool
         if true, some print statements will happen every info_frequency iterations
@@ -175,22 +175,22 @@ def multiplicative_gradient(
 
     # initialize stopping criteria checks
     REACHED_GAP = False
-    REACHED_CROSS_VAL = not CROSS_VALIDATE
+    REACHED_TRAIN_TEST = not TRAIN_TEST
 
 
-    # Do cross_validation index picking
-    if CROSS_VALIDATE:
+    # Do train test index picking
+    if TRAIN_TEST:
         if VERBOSE:
-            print("Getting cross validation stopping index")
-        cross_val_idx = multiplicative_gradient_cross_val(
-            cross_val_key,
+            print("Getting train test stopping index")
+        train_test_idx = multiplicative_gradient_train_test(
+            train_test_key,
             log_likelihood,
             wait_time=2,
             max_iterations=max_iterations,
             )
-        info["cross_val_idx"] = cross_val_idx
+        info["train_test_idx"] = train_test_idx
         if VERBOSE: 
-            print(f"Validation loss increases at idx: {cross_val_idx}")
+            print(f"Validation loss increases at idx: {train_test_idx}")
     
     for k in range(max_iterations):
         # update info
@@ -218,14 +218,14 @@ def multiplicative_gradient(
                 print(f"reached gap tolerance, at idx: {k}")
                 print(f"gap: {gap}")
          
-        # check the cross validation step
-        if CROSS_VALIDATE:
-            if k == cross_val_idx:
-                info["weights_cross_val"] = weights
-                REACHED_CROSS_VAL = True
+        # check the train test step
+        if TRAIN_TEST:
+            if k == train_test_idx:
+                info["weights_train_test"] = weights
+                REACHED_TRAIN_TEST = True
 
         # check if all stopping criteria met
-        if REACHED_CROSS_VAL and REACHED_GAP:
+        if REACHED_TRAIN_TEST and REACHED_GAP:
             if VERBOSE:
                 print(f"exiting! At iteration: {k}")
             break
@@ -251,7 +251,7 @@ def multiplicative_gradient(
 
 
 # TODO: fix docstring below
-def multiplicative_gradient_cross_val(
+def multiplicative_gradient_train_test(
     key, 
     log_likelihood,
     wait_time=2,
@@ -260,7 +260,7 @@ def multiplicative_gradient_cross_val(
     smooth_val=0.3
 ):
     """
-    Rudimentary cross validation for finding a stopping index 
+    Rudimentary train test split for finding a stopping index 
     of multiplicative gradient.
 
     Parameters
@@ -276,7 +276,7 @@ def multiplicative_gradient_cross_val(
     """
     num_data, num_nodes = log_likelihood.shape
     
-    log_likelihood_train, log_likelihood_test, _, _ = cross_val_split(key,
+    log_likelihood_train, log_likelihood_test, _, _ = train_test_split(key,
                                                                       log_likelihood,
                                                                       train_pct)
 
@@ -286,7 +286,7 @@ def multiplicative_gradient_cross_val(
     # initialize weights
     weights = (1/num_nodes)*jnp.ones(num_nodes)
 
-    # initialize cross validation
+    # initialize train test procedure
     count = 0
     smoothed_val_loss = compute_loss(weights, likelihood_test)
     for k in range(max_iterations):

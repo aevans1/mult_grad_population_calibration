@@ -1,30 +1,29 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 
 import mult_grad_population_calibration.optimize_weights as opt
 
 def main():
 
-    # Set up directories
+    # Set up RNG keys: first for generating the example, second for cross-validation split
+    seed_mixture = 1
+    seed_train_test = 2
+
+    # Set up directories (not needed here but can be used if wanting saved figs)
     main_dir = "."
     fig_dir = f"{main_dir}/figures/1d_mixture"
     data_dir = f"{main_dir}/data/likelihoods"
 
     # Set up pretty plots 
-    plt.style.use(f"my_style.mplstyle") # Use stylefile defined
+    plt.style.use("my_style.mplstyle") # Use stylefile defined
     plt.style.use("seaborn-v0_8-colorblind") # Use colorscheme from colorblind seaborn
-    mpl.rcParams['text.usetex'] = True  # Uncomment for latex font in plots
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color'] # Save color list for reference
 
     # Set up gaussian mixture model
-    seed = 1234
     weights = [0.3, 0.7]
     means = [-1.0, 1.0]
     stds = [0.5, 0.5]
-    key = jax.random.key(seed)
+    key = jax.random.key(seed_mixture)
 
     # Set up dataset parameters 
     num_samples = 100000
@@ -54,16 +53,28 @@ def main():
     # Compute log likelihood matrix
     log_likelihood = -1*(data[:, None] - nodes[None, :])**2 / (2*noise_std_dev**2)
 
-    # Compute weights
-    key, subkey = jax.random.split(key)
+    # Compute weights:
+    # "weights_frequency" set to save every 1 iterations, for retrieving later
+    # TRAIN_TEST set to TRUE so that two sets of stopping-criteria are used:
+    #  - stopping when the gradient gap is at tol (weights_gap)
+    #  - stopping based on a train_test split (weights_train_test)
+
+    key = jax.random.key(seed_train_test)
     weights, info = opt.multiplicative_gradient(log_likelihood, 
                                                 max_iterations=10000, 
-                                                weights_frequency=1, 
+                                                weights_frequency=1,
+                                                tol = 1e-2, 
                                                 VERBOSE=True, 
-                                                cross_val_key=key, 
-                                                CROSS_VALIDATE=True)
+                                                train_test_key=key, 
+                                                TRAIN_TEST=True)
     
-    plot_weights_and_info(nodes, info, true_weights)
+    # Plot 
+    PLOT_INITIAL=True
+    plot_weights_and_info(nodes, info, true_weights, PLOT_INITIAL=PLOT_INITIAL)
+
+    # if wanting to see trends easier, set PLOT_INITIAL=False, 
+    # it drops first iterate (initial weights) from plotting x-axis
+
     plt.show()
 
 def plot_histogram_data(nodes, clean_data, data, true_weights):
@@ -84,25 +95,40 @@ def plot_histogram_data(nodes, clean_data, data, true_weights):
     plt.tight_layout()
 
 
-def plot_weights_and_info(nodes, info, true_weights):
+def plot_weights_and_info(nodes, info, true_weights, PLOT_INITIAL=True):
 
     # Read in info from optimization 
     losses = info["losses"]
     gaps = info["gaps"]
     weights_gap = info["weights_gap"]
-    weights_cross_val = info["weights_cross_val"]
+    weights_train_test = info["weights_train_test"]
     weights = info["weights"]
     gap_idx = info["gap_idx"]
-    cross_val_idx = info["cross_val_idx"] 
+    train_test_idx = info["train_test_idx"] 
 
 
-    iterations = jnp.arange(0, len(losses), 1)
+    
+    # Not including stats at initial weights, skews the plots.
+    PLOT_INITIAL = False
+    if PLOT_INITIAL:
+        iterations = jnp.arange(0, len(losses), 1) + 1
+        gaps_plot = gaps
+        losses_plot = losses
+        print("NOTE: Plotting with initial loss and gap at iterations=0, may need to plot later iterates to see trends")
+        print("to do this, set PLOT_INITIAL=False")
+        print("iterations are shifted to start at iterations=1 for log-plot on x-axis")
+
+    else:
+        iterations = jnp.arange(1, len(losses), 1)
+        gaps_plot = gaps[1:]
+        losses_plot = losses[1:]
+        print("NOTE: Plotting without initial loss or gap, to show trends easier")
 
     # Plot final weights
     plt.figure()
     plt.plot(nodes, true_weights, label='true', color="C0", marker='.')
     plt.plot(nodes, weights_gap, label='weights, gap', color="C1", marker='.')
-    plt.plot(nodes, weights_cross_val, label='weights, cross-val', color="C2", marker='.')
+    plt.plot(nodes, weights_train_test, label='weights, train-test', color="C2", marker='.')
     plt.xlabel('x')
     plt.ylabel('Probability') 
     plt.legend(loc="upper right", fontsize=16)
@@ -111,9 +137,9 @@ def plot_weights_and_info(nodes, info, true_weights):
     # Plot losses
     plt.figure()
     # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
-    plt.semilogx(iterations+1, losses, label='losses', c='k')
-    plt.vlines(gap_idx, ymin=jnp.min(losses), ymax=jnp.max(losses), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(cross_val_idx, ymin=jnp.min(losses), ymax=jnp.max(losses), colors='C2', linestyles="-.", label="cross-val idx")
+    plt.semilogx(iterations, losses_plot, label='losses', c='k')
+    plt.vlines(gap_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C1', linestyles="-.", label="gap idx")
+    plt.vlines(train_test_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C2', linestyles="-.", label="cross-val idx")
     plt.xlabel('iterations')
     plt.ylabel('Loss') 
     plt.legend(fontsize=16)
@@ -122,9 +148,9 @@ def plot_weights_and_info(nodes, info, true_weights):
     # Plot gaps
     plt.figure()
     # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
-    plt.semilogx(iterations+1, gaps, label='gaps', c='k')
-    plt.vlines(gap_idx, ymin=jnp.min(gaps), ymax=jnp.max(gaps), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(cross_val_idx, ymin=jnp.min(gaps), ymax=jnp.max(gaps), colors='C2', linestyles="-.", label="cross-val idx")
+    plt.semilogx(iterations, gaps_plot, label='gaps', c='k')
+    plt.vlines(gap_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C1', linestyles="-.", label="gap idx")
+    plt.vlines(train_test_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C2', linestyles="-.", label="train-test idx")
     plt.xlabel('iterations')
     plt.ylabel('Gap') 
     plt.legend(fontsize=16)
