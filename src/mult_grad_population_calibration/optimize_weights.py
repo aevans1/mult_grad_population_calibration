@@ -123,8 +123,8 @@ def multiplicative_gradient(
     tol=1e-2,
     max_iterations=10000,
     weights_frequency=0,
-    split_seed=119,
-    CROSS_VALIDATE=True,
+    cross_val_key=None,
+    MODE="gap",
     VERBOSE=False,
 ):
     """
@@ -135,19 +135,17 @@ def multiplicative_gradient(
     log_likelihood: jax.array
         log-likelihood of generating data point i from node j.
     tol: float
-        tolerance for the stopping criteria
+        tolerance for the stopping criteria, applies if mode="gap"
     max_iterations: int
         max iterations if stopping criteria isn't met
     weights_frequency: int
         if larger than 0, weights are saved at every weights_frequency iterations
-    split_seed: int
-        seed for splitting into train, split for cross validation
-    CROSS_VALIDATE: bool
-        If true, a stopping index based on cross validation will be picked,
-        then compared with the gap stopping criteria
+    cross_val_key: jax.PRNG Key
+        used for cross-val if mode="cross_val" 
+    mode: string 
+        determines stopping criteria. if "gap": stops at gradient tol. if "cross-val", stops at cross-val
     VERBOSE: bool
         if true, some print statements will happen every info_frequency iterations
-
     Returns
     -------
     weights: jax.array 
@@ -169,28 +167,27 @@ def multiplicative_gradient(
     info["weights"] = []
 
     # initialize scaling for gap stopping criteria
-    gap_scale = scaled_gap(compute_grad(
-        weights, likelihood), weights, scale=1.0)
-
-    # initialize stopping criteria checks
-    REACHED_GAP = False
-    REACHED_CROSS_VAL = not CROSS_VALIDATE
-
+    if MODE =="gap":
+        if VERBOSE:
+            print("Getting gap validation stopping index")
+        gap_scale = scaled_gap(compute_grad(
+            weights, likelihood), weights, scale=1.0)
 
     # Do cross_validation index picking
-    if CROSS_VALIDATE:
+    if MODE =="cross_validate":
         if VERBOSE:
             print("Getting cross validation stopping index")
         cross_val_idx = multiplicative_gradient_cross_val(
+            cross_val_key,
             log_likelihood,
-            lag=3,
+            wait_time=2,
             max_iterations=max_iterations,
-            split_seed=split_seed,
             )
         info["cross_val_idx"] = cross_val_idx
         if VERBOSE: 
             print(f"Validation loss increases at idx: {cross_val_idx}")
     
+    REACHED_STOPPING_CRITERIA=False
     for k in range(max_iterations):
         # update info
         loss = update_info(weights, likelihood)
@@ -204,31 +201,24 @@ def multiplicative_gradient(
         # update grad
         grad = compute_grad(weights, likelihood)
 
-        # check stopping criterions
+        # check the stopping criteria
         gap = scaled_gap(grad, weights, gap_scale)
         info["gaps"].append(gap)
 
-        # check the gradient gap, if tolerance not met yet
-        if not REACHED_GAP and gap < tol:
+        if MODE=="gap" and gap < tol:
             info["gap_idx"] = k
             info["weights_gap"] = weights
-            REACHED_GAP = True
             if VERBOSE:
                 print(f"reached gap tolerance, at idx: {k}")
                 print(f"gap: {gap}")
-         
-        # check the cross validation step
-        if CROSS_VALIDATE:
-            if k == cross_val_idx:
-                info["weights_cross_val"] = weights
-                REACHED_CROSS_VAL = True
-
-        # check if all stopping criteria met
-        if REACHED_CROSS_VAL and REACHED_GAP:
+            REACHED_STOPPING_CRITERIA=True
+            break 
+        elif MODE=="cross_val" and k==cross_val_idx:
             if VERBOSE:
-                print(f"exiting! At iteration: {k}")
-            break
-
+                print(f"reached cross-val idx, at idx: {k}")
+            REACHED_STOPPING_CRITERIA=True
+            break 
+        
         # update weights
         weights = update_weights(weights, grad)
 
@@ -240,8 +230,7 @@ def multiplicative_gradient(
         info["weights"] = jnp.stack(info["weights"])
         info["weights_idx"] = jnp.arange(0, k, weights_frequency)
 
-    #print(f"REACHED GAP: {REACHED_GAP}")
-    if not REACHED_GAP:
+    if not REACHED_STOPPING_CRITERIA:
         print("Terminated at max iters: ")
         print("Returned weights & 'info[weights_gap']' are weights at max_iterations")
         info["weights_gap"] = weights
@@ -249,14 +238,13 @@ def multiplicative_gradient(
     return weights, info
 
 
-# TODO: figure out exponential smoothing for cross_val
 # TODO: fix docstring below
 def multiplicative_gradient_cross_val(
+    key, 
     log_likelihood,
-    lag=2,
+    wait_time=2,
     max_iterations=10000,
-    split_seed=298,
-    train_pct=0.5,
+    train_pct=0.8,
     smooth_val=0.2
 ):
     """
@@ -275,8 +263,7 @@ def multiplicative_gradient_cross_val(
     stopping_idx: int
     """
     num_data, num_nodes = log_likelihood.shape
-
-    key = jax.random.PRNGKey(split_seed)
+    
     log_likelihood_train, log_likelihood_test, _, _ = cross_val_split(key,
                                                                       log_likelihood,
                                                                       train_pct)
@@ -301,16 +288,17 @@ def multiplicative_gradient_cross_val(
         # update smoothed_loss
         val_loss_new = compute_loss(weights_new, likelihood_test)
 
-        # smooth
-        smoothed_val_loss_new = (smooth_val)*val_loss_new + (1-smooth_val)*smoothed_val_loss
-      
+        # smooth, if iterated past the soft assignment weights
+        if k > 2:
+            smoothed_val_loss_new = (smooth_val)*val_loss_new + (1-smooth_val)*smoothed_val_loss
+        else:
+            smoothed_val_loss_new = val_loss_new 
+
         # check stopping criterion: increase in (smoothed) validation loss
         val_losses_diff = smoothed_val_loss_new - smoothed_val_loss
         if val_losses_diff > 0:
             count += 1
-        else:
-            count = 0
-        if count >= lag:
+        if count >= wait_time:
             break
         weights = weights_new
         smoothed_val_loss = smoothed_val_loss_new 
