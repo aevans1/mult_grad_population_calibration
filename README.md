@@ -7,8 +7,12 @@ For now, the best explanation for our intended context is in the supplementary m
 [this paper](https://www.biorxiv.org/content/10.1101/2025.03.27.644168v1), section 2.1 for ensemble reweighting.
 
 ### Related Work
+#### Optimization 
 The baseline optimization method in MGPC is equivalent to the expectation maximization algorithm on just mixture weights for a mixture model, where the parameters in the mixtures are kept fixed. It is not a new technique, there is much historical context mentioned in the papers above. However, reframing the problem can be extremely helpful, as it is easier to analyze than expectation maximization in general. Further, our framework allows for various regularization and cross-validation strategies tailored to noisy datasets such as cryo-EM.
 There will be future updates that expound on this.
+
+#### Software
+This library will be implemented as an extension usable with likelihood computation via the [cryojax](https://github.com/michael-0brien/cryojax) library. Again, stay tuned for more updates.
 
 ## Trying the code
 For now, it's easiest to run
