@@ -55,7 +55,7 @@ def main():
 
     # Compute weights:
     # "weights_frequency" set to save every 1 iterations, for retrieving later
-    # TRAIN_TEST set to TRUE so that two sets of stopping-criteria are used:
+    # train_test set to TRUE so that two sets of stopping-criteria are used:
     #  - stopping when the gradient gap is at tol (weights_gap)
     #  - stopping based on a train_test split (weights_train_test)
 

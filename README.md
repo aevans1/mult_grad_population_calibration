@@ -12,16 +12,16 @@ The baseline optimization method in MGPC is equivalent to the expectation maximi
 There will be future updates that expound on this.
 
 #### Software
-This library will be implemented as an extension usable with likelihood computation via the [cryojax](https://github.com/michael-0brien/cryojax) library. Again, stay tuned for more updates.
-
+- This library was initiated as the `multiplicative_gradient' code in the repo [counting_particles_paper](https://github.com/aevans1/counting_particles_paper)
+- This library will be implemented as an extension usable with likelihood computation via the [cryojax](https://github.com/michael-0brien/cryojax) library. Again, stay tuned for more updates.
 ## Trying the code
 For now, it's easiest to run
 ```
 python example_1d_mixture.py
 ```
-to see how this works on a 1d example, and what diagnostics are output.
+to see how this works on a 1d example, and what diagnostics are output. For the example, you may notice that the gradient `gap` can be an erratic quantity comparatively to the loss!
 
-In this case, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
+In this example, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
 
 ## Installation
 - We recommend installing the project in a virtual environment, such as a python `venv`. An example script for creating a venv `mult_grad_population_calibration` in a parent directory `VENVS_DIR`, and then activating the environment, is
