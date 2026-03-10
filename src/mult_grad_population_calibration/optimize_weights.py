@@ -27,7 +27,7 @@ def compute_grad(weights, likelihood):
     gradient of log marginal likelihood: jax.Array
     """
     model = likelihood @ weights
-    grad = jnp.mean(likelihood/model[:, None], axis=0)
+    grad = jnp.mean(likelihood/model[:, jnp.newaxis], axis=0)
     return grad
 
 
@@ -54,7 +54,8 @@ def compute_loss(weights, likelihood):
 @jax.jit
 def update_weights(weights, grad):
     """
-    Updates weights according to multiplicative gradient algorithm
+    Updates weights according to multiplicative gradient algorithm.
+    Note that this update is positive and sums to 1 without normalization.
 
     Parameters
     ----------
@@ -67,11 +68,9 @@ def update_weights(weights, grad):
     -------
     updated weights: jax.Array  
     """
-    weights = weights*grad
-    return weights
+    return weights*grad
 
 
-@jax.jit
 def update_info(weights, likelihood):
     """
     For computing info/diagnostics of weights during iterations of mult. grad.
@@ -90,7 +89,7 @@ def update_info(weights, likelihood):
     loss: scalar
     other diagnostics to track...
     """
-    # TODO: other stats will go in here
+    # TODO: other jit-complied stats will go in here
     loss = compute_loss(weights, likelihood)
     return loss
 
@@ -118,22 +117,22 @@ def scaled_gap(grad, weights, scale):
     return (jnp.amax(grad) - 1) / scale
 
 
-# TODO: behavaior for TRAIN_TEST versus gradient gap
+# TODO: behavaior for train_test versus gradient gap
 def multiplicative_gradient(
     log_likelihood,
     tol=1e-2,
     max_iterations=10000,
     weights_frequency=0,
     train_test_key=None,
-    TRAIN_TEST=False,
-    VERBOSE=False,
+    train_test=False,
+    verbose=False,
 ):
     """
     optimizes the weights with the multiplicative gradient method.
 
     Parameters
     ----------
-    log_likelihood: jax.array
+    log_likelihood: jax.Array
         log-likelihood of generating data point i from node j.
     tol: float
         tolerance for the stopping criteria
@@ -143,15 +142,15 @@ def multiplicative_gradient(
         if larger than 0, weights are saved at every weights_frequency iterations
     train_test_key: jax.PRNGKey
         key for splitting into train, split for train test procedure
-    TRAIN_TEST: bool
+    train_test: bool
         If true, a stopping index based on train test procedure will be picked,
         then compared with the gap stopping criteria
-    VERBOSE: bool
+    verbose: bool
         if true, some print statements will happen every info_frequency iterations
 
     Returns
     -------
-    weights: jax.array 
+    weights: jax.Array 
     """
 
     num_data, num_nodes = log_likelihood.shape
@@ -164,23 +163,20 @@ def multiplicative_gradient(
 
   
     # initialize info tracked
-    info = {}
-    info["losses"] = []
-    info["gaps"] = []
-    info["weights"] = []
-
+    info = {"losses": [], "gaps": [], "weights": []}
+    
     # initialize scaling for gap stopping criteria
     gap_scale = scaled_gap(compute_grad(
         weights, likelihood), weights, scale=1.0)
 
     # initialize stopping criteria checks
-    REACHED_GAP = False
-    REACHED_TRAIN_TEST = not TRAIN_TEST
-
+    # particularly if not doing train_test, treat this as reached already 
+    reached_gap = False
+    reached_train_test = not train_test
 
     # Do train test index picking
-    if TRAIN_TEST:
-        if VERBOSE:
+    if train_test:
+        if verbose:
             print("Getting train test stopping index")
         train_test_idx = multiplicative_gradient_train_test(
             train_test_key,
@@ -189,7 +185,7 @@ def multiplicative_gradient(
             max_iterations=max_iterations,
             )
         info["train_test_idx"] = train_test_idx
-        if VERBOSE: 
+        if verbose: 
             print(f"Validation loss increases at idx: {train_test_idx}")
     
     for k in range(max_iterations):
@@ -210,23 +206,23 @@ def multiplicative_gradient(
         info["gaps"].append(gap)
 
         # check the gradient gap, if tolerance not met yet
-        if not REACHED_GAP and gap < tol:
+        if not reached_gap and gap < tol:
             info["gap_idx"] = k
             info["weights_gap"] = weights
-            REACHED_GAP = True
-            if VERBOSE:
+            reached_gap = True
+            if verbose:
                 print(f"reached gap tolerance, at idx: {k}")
                 print(f"gap: {gap}")
          
         # check the train test step
-        if TRAIN_TEST:
+        if train_test:
             if k == train_test_idx:
                 info["weights_train_test"] = weights
-                REACHED_TRAIN_TEST = True
+                reached_train_test = True
 
         # check if all stopping criteria met
-        if REACHED_TRAIN_TEST and REACHED_GAP:
-            if VERBOSE:
+        if reached_train_test and reached_gap:
+            if verbose:
                 print(f"exiting! At iteration: {k}")
             break
 
@@ -239,10 +235,9 @@ def multiplicative_gradient(
     info["gaps"] = jnp.stack(info["gaps"])
     if weights_frequency > 0:
         info["weights"] = jnp.stack(info["weights"])
-        info["weights_idx"] = jnp.arange(0, k, weights_frequency)
+        info["weights_idx"] = jnp.arange(len(info["weights"]))*weights_frequency
 
-    #print(f"REACHED GAP: {REACHED_GAP}")
-    if not REACHED_GAP:
+    if not reached_gap:
         print("Terminated at max iters: ")
         print("Returned weights & 'info[weights_gap']' are weights at max_iterations")
         info["weights_gap"] = weights
@@ -265,7 +260,7 @@ def multiplicative_gradient_train_test(
 
     Parameters
     ----------
-    log_likelihood: jax.array
+    log_likelihood: jax.Array
         log-likelihood of generating data point i from node j.
     max_iterations: int
         max iterations if stopping criteria isn't met
@@ -314,6 +309,7 @@ def multiplicative_gradient_train_test(
             break
         weights = weights_new
         smoothed_val_loss = smoothed_val_loss_new 
+    if k==max_iterations-1: 
+        print("NOTE: Train-test stopping criterion not reached.")
     return k
 
-# ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86

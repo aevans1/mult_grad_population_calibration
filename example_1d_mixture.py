@@ -64,15 +64,15 @@ def main():
                                                 max_iterations=10000, 
                                                 weights_frequency=1,
                                                 tol = 1e-2, 
-                                                VERBOSE=True, 
+                                                verbose=True, 
                                                 train_test_key=key, 
-                                                TRAIN_TEST=True)
+                                                train_test=True)
     
     # Plot 
-    PLOT_INITIAL=True
-    plot_weights_and_info(nodes, info, true_weights, PLOT_INITIAL=PLOT_INITIAL)
+    plot_initial=True
+    plot_weights_and_info(nodes, info, true_weights, plot_initial=plot_initial)
 
-    # if wanting to see trends easier, set PLOT_INITIAL=False, 
+    # if wanting to see trends easier, set plot_initial=False, 
     # it drops first iterate (initial weights) from plotting x-axis
 
     plt.show()
@@ -95,7 +95,7 @@ def plot_histogram_data(nodes, clean_data, data, true_weights):
     plt.tight_layout()
 
 
-def plot_weights_and_info(nodes, info, true_weights, PLOT_INITIAL=True):
+def plot_weights_and_info(nodes, info, true_weights, plot_initial=True):
 
     # Read in info from optimization 
     losses = info["losses"]
@@ -109,13 +109,13 @@ def plot_weights_and_info(nodes, info, true_weights, PLOT_INITIAL=True):
 
     
     # Not including stats at initial weights, skews the plots.
-    PLOT_INITIAL = False
-    if PLOT_INITIAL:
+    plot_initial = False
+    if plot_initial:
         iterations = jnp.arange(0, len(losses), 1) + 1
         gaps_plot = gaps
         losses_plot = losses
         print("NOTE: Plotting with initial loss and gap at iterations=0, may need to plot later iterates to see trends")
-        print("to do this, set PLOT_INITIAL=False")
+        print("to do this, set plot_initial=False")
         print("iterations are shifted to start at iterations=1 for log-plot on x-axis")
 
     else:

@@ -22,21 +22,21 @@ def train_test_split(key, log_likelihood, train_pct=0.8):
         training split 
     test : jax.Array
         test split
-    train_idx  : jax.Array
+    train_idx : jax.Array
         indices of original array used for train split
     test_idx : jax.Array
         indices of original array used for test split
     """
-    num_images = log_likelihood.shape[0]
+    num_data = log_likelihood.shape[0]
     split_size = int(jnp.ceil(train_pct*log_likelihood.shape[0]))
     train_idx = jax.random.choice(
         key,
-        num_images,
+        num_data,
         (split_size,),
         replace=False)
-    test_idx = jnp.setdiff1d(jnp.arange(num_images), train_idx)
-    train = jnp.copy(log_likelihood[train_idx, :])
-    test = jnp.copy(log_likelihood[test_idx, :])
+    test_idx = jnp.setdiff1d(jnp.arange(num_data), train_idx)
+    train = log_likelihood[train_idx, :]
+    test = log_likelihood[test_idx, :]
     return train, test, train_idx, test_idx
 
 
