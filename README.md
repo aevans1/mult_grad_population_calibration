@@ -12,7 +12,7 @@ The baseline optimization method in MGPC is equivalent to the expectation maximi
 There will be future updates that expound on this.
 
 #### Software
-- This library was initiated as the `multiplicative_gradient' code in the repo [counting_particles_paper](https://github.com/aevans1/counting_particles_paper)
+- This library was initiated as the `multiplicative_gradient` code in the repo [counting_particles_paper](https://github.com/aevans1/counting_particles_paper)
 - This library will be implemented as an extension usable with likelihood computation via the [cryojax](https://github.com/michael-0brien/cryojax) library. Again, stay tuned for more updates.
 ## Trying the code
 For now, it's easiest to run
@@ -37,3 +37,5 @@ source VENVS_DIR/mult_grad_population_calibration/bin/activate
     cd mult_grad_population_calibration
     python -m pip install .
     ```
+## Documentation
+Stay tuned!
