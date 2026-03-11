@@ -107,9 +107,7 @@ def plot_weights_and_info(nodes, info, true_weights, plot_initial=True):
     train_test_idx = info["train_test_idx"] 
 
 
-    
-    # Not including stats at initial weights, skews the plots.
-    plot_initial = False
+    # First iterates have very high loss/ gap usually, hard to see trends sometimes 
     if plot_initial:
         iterations = jnp.arange(0, len(losses), 1) + 1
         gaps_plot = gaps
