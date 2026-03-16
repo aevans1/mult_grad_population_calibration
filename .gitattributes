@@ -1,0 +1,5 @@
+# Source - https://stackoverflow.com/a/72921568
+# Posted by sytech, modified by community. See post 'Timeline' for change history
+# Retrieved 2026-03-16, License - CC BY-SA 4.0
+# Lukes note: I don't like how putting one ipynb in a repo makes the repo suddently 99% jupyter, so I put this here.
+*.ipynb -linguist-detectable
