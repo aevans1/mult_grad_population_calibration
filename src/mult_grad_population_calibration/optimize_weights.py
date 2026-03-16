@@ -11,8 +11,8 @@ def compute_grad(weights, likelihood):
 
     This computes the "probabilistic model" for the data prob density with weights w
     - sum_j p(y_i |x_j) w_j 
-    And then computes the gradient of sum_i (1/num_data)*log (sum_j p(y_i|x_j) w_j)
-    - (1/num_data)*sum_i (p(y_i|x_j) / sum_k p(y_i | x_k) w_j)
+    And then computes the gradient of (1/num_data)*sum_i log (sum_j p(y_i|x_j) w_j):
+    - (1/num_data)*sum_i ((p(y_i|x_j) / sum_k p(y_i | x_k) w_j))
 
     Parameters
     ----------
@@ -55,7 +55,7 @@ def compute_loss(weights, likelihood):
 def update_weights(weights, grad):
     """
     Updates weights according to multiplicative gradient algorithm.
-    Note that this update is positive and sums to 1 without normalization.
+    NOTE: this update is positive and sums to 1 without normalization.
 
     Parameters
     ----------
@@ -74,7 +74,7 @@ def update_weights(weights, grad):
 def update_info(weights, likelihood):
     """
     For computing info/diagnostics of weights during iterations of mult. grad.
-    For now, just loss computed, but could add other things here.
+    NOTE: For now, just loss computed, but could add other things here.
 
     Parameters
     ----------
@@ -117,7 +117,7 @@ def scaled_gap(grad, weights, scale):
     return (jnp.amax(grad) - 1) / scale
 
 
-# TODO: behavaior for train_test versus gradient gap
+# TODO: behavior for train_test versus gradient gap
 def multiplicative_gradient(
     log_likelihood,
     tol=1e-2,
@@ -162,14 +162,14 @@ def multiplicative_gradient(
     likelihood = normalize_log_likeli_to_likeli(log_likelihood)
 
   
-    # initialize info tracked
+    # Initialize info tracked
     info = {"losses": [], "gaps": [], "weights": []}
     
-    # initialize scaling for gap stopping criteria
+    # Initialize scaling for gap stopping criteria
     gap_scale = scaled_gap(compute_grad(
         weights, likelihood), weights, scale=1.0)
 
-    # initialize stopping criteria checks
+    # Initialize stopping criteria checks.
     # particularly if not doing train_test, treat this as reached already 
     reached_gap = False
     reached_train_test = not train_test
@@ -189,23 +189,23 @@ def multiplicative_gradient(
             print(f"Validation loss increases at idx: {train_test_idx}")
     
     for k in range(max_iterations):
-        # update info
+        # Update info
         loss = update_info(weights, likelihood)
         info["losses"].append(loss)
         # info["your_favorite_stat"].append(...)
 
-        # check if saving weights
+        # Check if saving weights
         if weights_frequency > 0 and k % weights_frequency == 0:
             info["weights"].append(weights)
 
-        # update grad
+        # Update grad
         grad = compute_grad(weights, likelihood)
 
-        # check stopping criterions
+        # Check stopping criterions
         gap = scaled_gap(grad, weights, gap_scale)
         info["gaps"].append(gap)
 
-        # check the gradient gap, if tolerance not met yet
+        # Check current gap against tolerance
         if not reached_gap and gap < tol:
             info["gap_idx"] = k
             info["weights_gap"] = weights
@@ -214,22 +214,22 @@ def multiplicative_gradient(
                 print(f"reached gap tolerance, at idx: {k}")
                 print(f"gap: {gap}")
          
-        # check the train test step
+        # Check current index against the train_test stopping index
         if train_test:
             if k == train_test_idx:
                 info["weights_train_test"] = weights
                 reached_train_test = True
 
-        # check if all stopping criteria met
+        # Check if all stopping criteria met
         if reached_train_test and reached_gap:
             if verbose:
                 print(f"exiting! At iteration: {k}")
             break
 
-        # update weights
+        # Update weights
         weights = update_weights(weights, grad)
 
-    # collect info in array format, and save weights and corresponding indices if requested
+    # Collect info in array format, and save weights and corresponding indices if requested
     info["final_idx"] = k
     info["losses"] = jnp.stack(info["losses"])
     info["gaps"] = jnp.stack(info["gaps"])
@@ -245,7 +245,6 @@ def multiplicative_gradient(
     return weights, info
 
 
-# TODO: fix docstring below
 def multiplicative_gradient_train_test(
     key, 
     log_likelihood,
@@ -260,11 +259,18 @@ def multiplicative_gradient_train_test(
 
     Parameters
     ----------
+    key: jax.PRNGKey
+        key for splitting into train, split for train test procedure
     log_likelihood: jax.Array
-        log-likelihood of generating data point i from node j.
+        log-likelihood of generating data point i from node j
+    wait_time: int
+        how many increases in validation loss before stopping
     max_iterations: int
         max iterations if stopping criteria isn't met
-
+    train_pct: float
+        percentage of dataset used for training data
+    smooth_val: float
+        smoothing parameter for exponential smoothing of validation loss
     Returns
     -------
     stopping_idx: int
@@ -278,30 +284,30 @@ def multiplicative_gradient_train_test(
     likelihood_train = normalize_log_likeli_to_likeli(log_likelihood_train)
     likelihood_test = normalize_log_likeli_to_likeli(log_likelihood_test)
 
-    # initialize weights
+    # Initialize weights
     weights = (1/num_nodes)*jnp.ones(num_nodes)
 
-    # initialize train test procedure
+    # Initialize train test procedure
     count = 0
     smoothed_val_loss = compute_loss(weights, likelihood_test)
     for k in range(max_iterations):
 
-        # update grad
+        # Update grad
         grad = compute_grad(weights, likelihood_train)
 
-        # update weights
+        # Update weights
         weights_new = update_weights(weights, grad)
 
-        # update smoothed_loss
+        # Update smoothed_loss
         val_loss_new = compute_loss(weights_new, likelihood_test)
 
-        # smooth, if iterated past the soft assignment weights
+        # Smooth, if iterated past the soft assignment weights
         if k > 1:
             smoothed_val_loss_new = (smooth_val)*val_loss_new + (1-smooth_val)*smoothed_val_loss
         else:
             smoothed_val_loss_new = val_loss_new 
 
-        # check stopping criterion: increase in (smoothed) validation loss
+        # Check stopping criterion: increase in (smoothed) validation loss
         val_losses_diff = smoothed_val_loss_new - smoothed_val_loss
         if val_losses_diff > 0:
             count += 1
@@ -309,6 +315,7 @@ def multiplicative_gradient_train_test(
             break
         weights = weights_new
         smoothed_val_loss = smoothed_val_loss_new 
+    
     if k==max_iterations-1: 
         print("NOTE: Train-test stopping criterion not reached.")
     return k

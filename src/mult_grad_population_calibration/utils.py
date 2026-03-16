@@ -4,7 +4,7 @@ import jax
 
 def train_test_split(key, log_likelihood, train_pct=0.8):
     """
-    Splits log likelihood into two sets, based on rows (images)
+    Splits log likelihood into two sets, based on rows (images / data points)
 
     Parameters
     ----------
