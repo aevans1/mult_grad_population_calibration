@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 import mult_grad_population_calibration.optimize_weights as opt
+import mult_grad_population_calibration.utils as utils
 
 def main():
 
@@ -13,7 +14,7 @@ def main():
     # Set up directories (not needed here but can be used if wanting saved figs)
     main_dir = "."
     fig_dir = f"{main_dir}/figures/1d_mixture"
-    data_dir = f"{main_dir}/data/likelihoods"
+    data_dir = f"{main_dir}/data/"
 
     # Set up pretty plots 
     plt.style.use("my_style.mplstyle") # Use stylefile defined
@@ -61,21 +62,39 @@ def main():
 
     key = jax.random.key(seed_train_test)
     weights, info = opt.multiplicative_gradient(log_likelihood, 
-                                                max_iterations=10000, 
+                                                max_iterations=1000, 
                                                 weights_frequency=1,
-                                                tol = 1e-2, 
+                                                tol=1e-2, 
                                                 verbose=True, 
                                                 train_test_key=key, 
                                                 train_test=True)
     
     # Plot 
-    plot_initial=True
-    plot_weights_and_info(nodes, info, true_weights, plot_initial=plot_initial)
-
     # if wanting to see trends easier, set plot_initial=False, 
     # it drops first iterate (initial weights) from plotting x-axis
+    plot_initial=True
+    utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial)
+    
+    # for saving figures, use:
+    #utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial, fig_dir=fig_dir)
 
+    # for comparing weights at max_iterations, to early stopped weights:
+    #  - set diagnostic=True in multiplicative_gradient()
+    #  - set final_weights=weights in plot_weights_and_info_1d()
+    # example:
+        # #this code will save early stopped weights, but run to max_iterations=1000, because diagnostic=True
+        # weights, info = opt.multiplicative_gradient(log_likelihood, 
+        #                                            max_iterations=1000, 
+        #                                            weights_frequency=1,
+        #                                            tol = 1e-2, 
+        #                                            verbose=True, 
+        #                                            train_test_key=key, 
+        #                                            train_test=True,
+        #                                            diagnostic=True)
+        # #this code will plot `weights` returned above as the max iteration weights in the plots: 
+        # utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, final_weights=weights, plot_initial=plot_initial)
     plt.show()
+
 
 def plot_histogram_data(nodes, clean_data, data, true_weights):
     plt.figure()
@@ -93,66 +112,6 @@ def plot_histogram_data(nodes, clean_data, data, true_weights):
     plt.xlabel("x")
     plt.legend()
     plt.tight_layout()
-
-
-def plot_weights_and_info(nodes, info, true_weights, plot_initial=True):
-
-    # Read in info from optimization 
-    losses = info["losses"]
-    gaps = info["gaps"]
-    weights_gap = info["weights_gap"]
-    weights_train_test = info["weights_train_test"]
-    weights = info["weights"]
-    gap_idx = info["gap_idx"]
-    train_test_idx = info["train_test_idx"] 
-
-
-    # First iterates have very high loss/ gap usually, hard to see trends sometimes 
-    if plot_initial:
-        iterations = jnp.arange(0, len(losses), 1) + 1
-        gaps_plot = gaps
-        losses_plot = losses
-        print("NOTE: Plotting with initial loss and gap at iterations=0, may need to plot later iterates to see trends")
-        print("to do this, set plot_initial=False")
-        print("iterations are shifted to start at iterations=1 for log-plot on x-axis")
-
-    else:
-        iterations = jnp.arange(1, len(losses), 1)
-        gaps_plot = gaps[1:]
-        losses_plot = losses[1:]
-        print("NOTE: Plotting without initial loss or gap, to show trends easier")
-
-    # Plot final weights
-    plt.figure()
-    plt.plot(nodes, true_weights, label='true', color="C0", marker='.')
-    plt.plot(nodes, weights_gap, label='weights, gap', color="C1", marker='.')
-    plt.plot(nodes, weights_train_test, label='weights, train-test', color="C2", marker='.')
-    plt.xlabel('x')
-    plt.ylabel('Probability') 
-    plt.legend(loc="upper right", fontsize=16)
-    #plt.savefig(f"{fig_dir}/weight_comparison.png", dpi=300)
-
-    # Plot losses
-    plt.figure()
-    # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
-    plt.semilogx(iterations, losses_plot, label='losses', c='k')
-    plt.vlines(gap_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(train_test_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C2', linestyles="-.", label="cross-val idx")
-    plt.xlabel('iterations')
-    plt.ylabel('Loss') 
-    plt.legend(fontsize=16)
-    #plt.savefig(f"{fig_dir}/weight_comparison.png", dpi=300)
-
-    # Plot gaps
-    plt.figure()
-    # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
-    plt.semilogx(iterations, gaps_plot, label='gaps', c='k')
-    plt.vlines(gap_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(train_test_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C2', linestyles="-.", label="train-test idx")
-    plt.xlabel('iterations')
-    plt.ylabel('Gap') 
-    plt.legend(fontsize=16)
-    #plt.savefig(f"{fig_dir}/weight_comparison.png", dpi=300)
 
 
 @jax.jit

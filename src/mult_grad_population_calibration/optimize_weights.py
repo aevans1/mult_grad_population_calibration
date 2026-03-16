@@ -1,3 +1,5 @@
+import re
+
 import jax
 import jax.numpy as jnp
 
@@ -126,6 +128,7 @@ def multiplicative_gradient(
     train_test_key=None,
     train_test=False,
     verbose=False,
+    diagnostic=False
 ):
     """
     optimizes the weights with the multiplicative gradient method.
@@ -147,7 +150,10 @@ def multiplicative_gradient(
         then compared with the gap stopping criteria
     verbose: bool
         if true, some print statements will happen every info_frequency iterations
-
+    diagnostic: bool
+        if true, method will go to max_iterations, returning max iteration weights.
+        This can be used to diagnose how overfit the max iterations are compared to the 
+        weights from train_test or the gap tolerance.
     Returns
     -------
     weights: jax.Array 
@@ -221,7 +227,7 @@ def multiplicative_gradient(
                 reached_train_test = True
 
         # Check if all stopping criteria met
-        if reached_train_test and reached_gap:
+        if reached_train_test and reached_gap and not diagnostic:
             if verbose:
                 print(f"exiting! At iteration: {k}")
             break
