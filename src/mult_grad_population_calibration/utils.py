@@ -93,8 +93,8 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     train_test_idx = info["train_test_idx"] 
 
 
-    # First iterates have very high loss/ gap usually, hard to see trends sometimes 
     if plot_initial:
+        # keep all indices for plotting
         iterations = jnp.arange(0, len(losses), 1) + 1
         gaps_plot = gaps
         losses_plot = losses
@@ -103,9 +103,12 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
         print("iterations are shifted to start at iterations=1 for log-plot on x-axis")
 
     else:
+        # drop 0 index, shift all plotted quantities by 1 index
         iterations = jnp.arange(1, len(losses), 1)
         gaps_plot = gaps[1:]
         losses_plot = losses[1:]
+        gap_idx += 1
+        train_test_idx += 1
         print("NOTE: Plotting without initial loss or gap, to show trends easier")
 
     # Plot final weights
@@ -125,7 +128,6 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
 
     # Plot losses
     plt.figure()
-    # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
     plt.semilogx(iterations, losses_plot, label='losses', c='k')
     plt.vlines(gap_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C1', linestyles="-.", label="gap idx")
     plt.vlines(train_test_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C2', linestyles="-.", label="cross-val idx")
