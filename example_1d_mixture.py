@@ -60,20 +60,20 @@ def main():
     #  - stopping when the gradient gap is at tol (weights_gap)
     #  - stopping based on a train_test split (weights_train_test)
 
-    key = jax.random.key(seed_train_test)
-    weights, info = opt.multiplicative_gradient(log_likelihood, 
-                                                max_iterations=1000, 
-                                                weights_frequency=1,
-                                                tol=1e-2, 
-                                                verbose=True, 
-                                                train_test_key=key, 
-                                                train_test=True)
+    #key = jax.random.key(seed_train_test)
+    #weights, info = opt.multiplicative_gradient(log_likelihood, 
+    #                                            max_iterations=1000, 
+    #                                            weights_frequency=1,
+    #                                            tol=1e-3, 
+    #                                            verbose=True, 
+    #                                            train_test_key=key, 
+    #                                            train_test=True)
     
     # Plot 
     # if wanting to see trends easier, set plot_initial=False, 
     # it drops first iterate (initial weights) from plotting x-axis
-    plot_initial=True
-    utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial)
+    #plot_initial = False
+    #utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial)
     
     # for saving figures, use:
     #utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial, fig_dir=fig_dir)
@@ -93,6 +93,16 @@ def main():
         #                                            diagnostic=True)
         # #this code will plot `weights` returned above as the max iteration weights in the plots: 
         # utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, final_weights=weights, plot_initial=plot_initial)
+    plot_initial = False 
+    weights, info = opt.multiplicative_gradient(log_likelihood, 
+                                                max_iterations=1000, 
+                                                weights_frequency=1,
+                                                tol = 1e-3, 
+                                                verbose=True, 
+                                                train_test_key=key, 
+                                                train_test=True,
+                                                diagnostic=True)
+    utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, final_weights=weights, plot_initial=plot_initial)
     plt.show()
 
 

@@ -86,6 +86,7 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     # Read in info from optimization 
     losses = info["losses"]
     gaps = info["gaps"]
+    grad_variances = info["grad_variances"]
     weights_gap = info["weights_gap"]
     weights_train_test = info["weights_train_test"]
     weights = info["weights"]
@@ -106,6 +107,7 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
         # drop 0 index, shift all plotted quantities by 1 index
         iterations = jnp.arange(1, len(losses), 1)
         gaps_plot = gaps[1:]
+        grad_variances = grad_variances[1:]
         losses_plot = losses[1:]
         gap_idx += 1
         train_test_idx += 1
@@ -142,6 +144,7 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     plt.figure()
     # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
     plt.semilogx(iterations, gaps_plot, label='gaps', c='k')
+    plt.semilogx(iterations, (grad_variances)**(0.5), label='grad stds', c='C3')
     plt.vlines(gap_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C1', linestyles="-.", label="gap idx")
     plt.vlines(train_test_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C2', linestyles="-.", label="train-test idx")
     plt.xlabel('iterations')

@@ -97,7 +97,31 @@ def update_info(weights, likelihood):
 
 
 @jax.jit
-def scaled_gap(grad, weights, scale):
+def compute_scaled_grad_variance(grad, weights, scale):
+    """
+    Find variance gradient vec, and rescale.
+    This is an alternate gap criteria.
+
+    Parameters
+    ----------
+    grad : jax.Array
+        gradient of weights, same shape as weights
+    weights : jax.Array
+        weights of the nodes
+    scale : float
+        scaling factor, so that the gap at initial iterate is 1. 
+
+    Returns
+    -------
+    scaled gap: float
+    """
+    grad = jnp.where(weights > 0, grad, 0)
+    return jnp.sum(weights*(grad - 1)**2) / scale
+
+
+
+@jax.jit
+def compute_scaled_gap(grad, weights, scale):
     """
     Find maximum index of gradient vec, only at nonzero indices of weights, and rescale.
     This gap is a proxy for convergence, common for convex objectives.
@@ -169,12 +193,13 @@ def multiplicative_gradient(
 
   
     # Initialize info tracked
-    info = {"losses": [], "gaps": [], "weights": []}
+    info = {"losses": [], "gaps": [], "grad_variances": [], "weights": []}
     
     # Initialize scaling for gap stopping criteria
-    gap_scale = scaled_gap(compute_grad(
-        weights, likelihood), weights, scale=1.0)
-
+    grad_init = compute_grad(weights, likelihood)
+    gap_scale = compute_scaled_gap(grad_init, weights, scale=1.0)
+    var_scale = compute_scaled_grad_variance(grad_init, weights, scale=1.0)
+    
     # Initialize stopping criteria checks.
     # particularly if not doing train_test, treat this as reached already 
     reached_gap = False
@@ -208,8 +233,10 @@ def multiplicative_gradient(
         grad = compute_grad(weights, likelihood)
 
         # Check stopping criterions
-        gap = scaled_gap(grad, weights, gap_scale)
+        gap = compute_scaled_gap(grad, weights, gap_scale)
+        grad_variance = compute_scaled_grad_variance(grad, weights, var_scale)
         info["gaps"].append(gap)
+        info["grad_variance"].append(grad_variance)
 
         # Check current gap against tolerance
         if not reached_gap and gap < tol:
@@ -239,6 +266,7 @@ def multiplicative_gradient(
     info["final_idx"] = k
     info["losses"] = jnp.stack(info["losses"])
     info["gaps"] = jnp.stack(info["gaps"])
+    info["grad_variances"] = jnp.stack(info["grad_variances"])
     if weights_frequency > 0:
         info["weights"] = jnp.stack(info["weights"])
         info["weights_idx"] = jnp.arange(len(info["weights"]))*weights_frequency
