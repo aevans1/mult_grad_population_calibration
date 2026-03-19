@@ -36,7 +36,7 @@ def compute_grad(weights, likelihood):
 @jax.jit
 def compute_loss(weights, likelihood):
     """
-    Computes negative marginal likelihood loss
+    Computes negative marginal log likelihood loss
 
     Parameters
     ----------
