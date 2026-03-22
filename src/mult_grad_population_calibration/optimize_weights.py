@@ -236,7 +236,7 @@ def multiplicative_gradient(
         gap = compute_scaled_gap(grad, weights, gap_scale)
         grad_variance = compute_scaled_grad_variance(grad, weights, var_scale)
         info["gaps"].append(gap)
-        info["grad_variance"].append(grad_variance)
+        info["grad_variances"].append(grad_variance)
 
         # Check current gap against tolerance
         if not reached_gap and gap < tol:
