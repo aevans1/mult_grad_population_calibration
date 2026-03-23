@@ -87,20 +87,20 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     losses = info["losses"]
     gaps = info["gaps"]
     weights_gap = info["weights_gap"]
-    weights_train_test = info["weights_train_test"]
+    if "weights_train_test" in info:
+        weights_train_test = info["weights_train_test"]
+        train_test_idx = info["train_test_idx"] 
     weights = info["weights"]
     gap_idx = info["gap_idx"]
-    train_test_idx = info["train_test_idx"] 
-
-
+    
     if plot_initial:
         # keep all indices for plotting
         iterations = jnp.arange(0, len(losses), 1) + 1
         gaps_plot = gaps
         losses_plot = losses
-        print("NOTE: Plotting with initial loss and gap at iterations=0, may need to plot later iterates to see trends")
-        print("to do this, set plot_initial=False")
-        print("iterations are shifted to start at iterations=1 for log-plot on x-axis")
+        print("NOTE: Plotting with initial loss and gap at iterations=0")
+        print("Iterations are shifted to start at iterations=1, to do a log-plot on x-axis")
+        print("To see trends easier, you may want to drop the 0th iteration. To do this, set plot_initial=False")
 
     else:
         # drop 0 index, shift all plotted quantities by 1 index
@@ -108,7 +108,8 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
         gaps_plot = gaps[1:]
         losses_plot = losses[1:]
         gap_idx += 1
-        train_test_idx += 1
+        if "weights_train_test" in info:
+            train_test_idx += 1
         print("NOTE: Plotting without initial loss or gap, to show trends easier")
 
     # Plot final weights
@@ -116,7 +117,8 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     if true_weights is not None:
         plt.plot(nodes, true_weights, label='true', color="C0", marker='.')
     plt.plot(nodes, weights_gap, label='weights, gap', color="C1", marker='.')
-    plt.plot(nodes, weights_train_test, label='weights, train-test', color="C2", marker='.')
+    if "weights_train_test" in info:
+        plt.plot(nodes, weights_train_test, label='weights, train-test', color="C2", marker='.')
     if final_weights is not None:
         plt.plot(nodes, final_weights, label='weights, max iters.', color="C3", marker='.')
     plt.xlabel('x')
@@ -130,7 +132,8 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     plt.figure()
     plt.semilogx(iterations, losses_plot, label='losses', c='k')
     plt.vlines(gap_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(train_test_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C2', linestyles="-.", label="cross-val idx")
+    if "weights_train_test" in info:
+        plt.vlines(train_test_idx, ymin=jnp.min(losses_plot), ymax=jnp.max(losses_plot), colors='C2', linestyles="-.", label="cross-val idx")
     plt.xlabel('iterations')
     plt.ylabel('Loss') 
     plt.legend(fontsize=16)
@@ -143,7 +146,8 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     # Here plotting a semilog plot, and shifting indices so 0 doesn't show up
     plt.semilogx(iterations, gaps_plot, label='gaps', c='k')
     plt.vlines(gap_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C1', linestyles="-.", label="gap idx")
-    plt.vlines(train_test_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C2', linestyles="-.", label="train-test idx")
+    if "weights_train_test" in info:
+        plt.vlines(train_test_idx, ymin=jnp.min(gaps_plot), ymax=jnp.max(gaps_plot), colors='C2', linestyles="-.", label="train-test idx")
     plt.xlabel('iterations')
     plt.ylabel('Gap') 
     plt.legend(fontsize=16)
