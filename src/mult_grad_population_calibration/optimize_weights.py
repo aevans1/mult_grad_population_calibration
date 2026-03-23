@@ -152,7 +152,8 @@ def multiplicative_gradient(
     train_test_key=None,
     train_test=False,
     verbose=False,
-    diagnostic=False
+    diagnostic=False,
+    scale=True
 ):
     """
     optimizes the weights with the multiplicative gradient method.
@@ -178,6 +179,8 @@ def multiplicative_gradient(
         if true, method will go to max_iterations, returning max iteration weights.
         This can be used to diagnose how overfit the max iterations are compared to the 
         weights from train_test or the gap tolerance.
+    scale: True
+        if true, will scale the first iteration of the gradient gap.
     Returns
     -------
     weights: jax.Array 
@@ -197,8 +200,13 @@ def multiplicative_gradient(
     
     # Initialize scaling for gap stopping criteria
     grad_init = compute_grad(weights, likelihood)
-    gap_scale = compute_scaled_gap(grad_init, weights, scale=1.0)
-    var_scale = compute_scaled_grad_variance(grad_init, weights, scale=1.0)
+    
+    if scale: 
+        gap_scale = compute_scaled_gap(grad_init, weights, scale=1.0)
+        var_scale = compute_scaled_grad_variance(grad_init, weights, scale=1.0)
+    else:
+        gap_scale = 1.0
+        var_scale = 1.0
     
     # Initialize stopping criteria checks.
     # particularly if not doing train_test, treat this as reached already 
