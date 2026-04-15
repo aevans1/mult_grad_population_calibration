@@ -41,7 +41,6 @@ def main():
     
     # Choosing nodes: for now, just picking evenly spaced ones
     nodes = jnp.linspace(-4, 4, num_nodes)
-    num_nodes = nodes.shape[0]
 
     # Evaluating prob to set up `true weights` at nodes 
     eval_log_prob = jax.vmap(lambda x : eval_mixture_list(x, weights, means, stds))
