@@ -30,11 +30,11 @@ to see how this works on a 1d example, and what diagnostics are output.
 In this example, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
 
 This example above is a work progress, and will be updated in the future for clarity.
-### Related Work
-#### Optimization 
+## Related Work
+### Optimization 
 The baseline optimization method in MGPC is equivalent to the expectation maximization algorithm on just mixture weights for a mixture model, where the parameters in the mixtures are kept fixed. It is not a new technique, there is much historical context mentioned in the papers above. However, reframing the problem can be extremely helpful, as it is easier to analyze than expectation maximization in general. Further, our framework allows for various regularization and cross-validation strategies tailored to noisy datasets such as cryo-EM.
 There will be future updates that expound on this.
 
-#### Software
+### Software
 - This library was initiated as the `multiplicative_gradient` code in the repo [counting_particles_paper](https://github.com/aevans1/counting_particles_paper)
 - This library will be implemented as an extension usable with likelihood computation via the [cryojax](https://github.com/michael-0brien/cryojax) library. Again, stay tuned for more updates.
