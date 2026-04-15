@@ -21,7 +21,7 @@ source VENVS_DIR/mult_grad_population_calibration/bin/activate
     ```
 ## Trying the code
 ### Log Likelihood matrix
-The main function [`muliplicative_gradient`](https://github.com/aevans1/mult_grad_population_calibration/blob/main/src/mult_grad_population_calibration/optimize_weights.py) requires a `log_likelihood` matrix as input. `log_likelihood` must be a `jax.Array` with `num_data` rows (for data $\{y_i\}_{i=1}^{\text{num_data}})$ and `num_nodes`($\{x_j\}_{j=1}^{\text{num_nodes}}$) columns. It's expected that $\texttt{log_likelihood[i, j]} = \log p(y_|x_j),$ for a data point $y_i$ and a node $x_j.$ For the cryo-EM settings the "data" are the images and the "nodes" are the conformations.
+The main function [`muliplicative_gradient`](https://github.com/aevans1/mult_grad_population_calibration/blob/main/src/mult_grad_population_calibration/optimize_weights.py) requires a `log_likelihood` matrix as input. `log_likelihood` must be a `jax.Array` with `num_data` rows (for data $`\{y_i\}_{i=1}^{\text{num_data}})`$ and `num_nodes` ($`\{x_j\}_{j=1}^{\text{num_nodes}}`$) columns. It's expected that $`\texttt{log_likelihood[i, j]} = \log p(y_|x_j),`$ for a data point $`y_i`$ and a node $`x_j.`$ For the cryo-EM settings the "data" are the images and the "nodes" are the conformations.
 
 **NOTE**: It is crucial that the above matrix is a log-likelihood matrix and not a negative log-likelihood matrix.  
 
