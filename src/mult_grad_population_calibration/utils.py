@@ -1,3 +1,4 @@
+import warnings
 import jax.numpy as jnp
 import jax
 import matplotlib.pyplot as plt
@@ -61,6 +62,16 @@ def normalize_log_likeli_to_likeli(log_likelihood):
     log_likelihood -= jnp.amax(log_likelihood, axis=1)[:, None]
     likelihood = jnp.exp(log_likelihood)
     return likelihood
+
+
+def negative_log_likelihood_check(log_likelihood):
+    """
+    Check if input matrix is a negative log likelihood matrix, instead of a log likelihood. 
+    NOTE: for now, just checking if there are positive numbers.  
+    This is not an ideal test, as log likelihoods can be arbitrarily shifted as log likelihood + C for a global constant.
+    For the future, will have something better here.
+    """
+    return jnp.amax(log_likelihood) > 0
 
 
 def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None, plot_initial=True, fig_dir=None):

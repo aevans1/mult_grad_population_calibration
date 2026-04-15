@@ -1,6 +1,7 @@
+import warnings
 import jax
 import jax.numpy as jnp
-from mult_grad_population_calibration.utils import train_test_split, normalize_log_likeli_to_likeli
+from mult_grad_population_calibration.utils import train_test_split, normalize_log_likeli_to_likeli, negative_log_likelihood_check
 
 
 def multiplicative_gradient(
@@ -44,15 +45,19 @@ def multiplicative_gradient(
 
     num_data, num_nodes = log_likelihood.shape
 
-    # Initialize weights
-    weights = (1/num_nodes)*jnp.ones(num_nodes)
+    # Check if user may have input a negative log_likelihood matrix
+    if negative_log_likelihood_check(log_likelihood):
+        print("Warning: Input matrix may be a negative log likelihood instead of a log likelihood. You may want to re-run with -log_likelihood to check.")
 
     # Convert log likelihood to likelihood via "soft-max"-ish operation
     likelihood = normalize_log_likeli_to_likeli(log_likelihood)
 
     # Initialize info tracked
     info = {"losses": [], "gaps": [], "weights_history": []}
-    
+
+    # Initialize weights
+    weights = (1/num_nodes)*jnp.ones(num_nodes)
+
     # Initialize scaling for gap stopping criteria
     gap_scale = scaled_gap(compute_grad(
         weights, likelihood), weights, scale=1.0)
