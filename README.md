@@ -36,11 +36,14 @@ import mult_grad_population_calibration.optimize_weights as opt
 weights, info = opt.multiplicative_gradient(log_likelihood)
 ```
 The outputs of `multiplicative gradient` are:
-- `weights`: `jax.Array`, the optimized weights from multiplicative gradient.
+- `weights`: `jax.Array`, the optimized weights from multiplicative gradient. The weights returned depend on whether the `train_test` criteria is used. By default, these will be the weights from the gradient gap stopping criteria, the same as `weights_gap` in the info below.
 - `info`: `Dict` of information from optimization. By default, has the fields:
   - `losses`: `jax.Array` of the loss (negative marginal log likelihood) values per iteration.
   - `gaps`: `jax.Array` of the gradient gap at each iteration. This `gap` is used for stopping the iteration.
   - `weights_history`: `jax.Array` of weights computed at every `weights_frequency` iterations. Empty if `weights_frequency=0`.
+  - `weights_idx`: `jax.Array` of iteration index for weights in `weights_history`.
+  - `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
+  - `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
   - `final_idx`: `int` of last index reached in simulation.
 
 ### Train-Test Stopping Criteria
@@ -64,8 +67,6 @@ Both the default `gap` criteria weights and the train-test weights are returned 
 The new outputs returned from `info` are
 - `train_test_idx`: `int` of the index where the train-test criteria has stopped the iteration.
 - `weights_train_test`: `jax.Array` of the weights from the train-test stopping criteria, at `train_test_idx`. 
-- `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
-- `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
 
 ### Saving weights and running to max iterations
 The below example code optimizes which runs to max iterations, sets a custom tolerance, and saves weights for checking the history of the optimization.
@@ -74,21 +75,17 @@ import jax
 import jax.numpy as jnp
 import mult_grad_population_calibration.optimize_weights as opt
 
-seed_train_test = 0
-key = jax.random.key(seed_train_test)
-
 # log likelihood is a (num_data x num_nodes) jax.numpy array
 weights, info = opt.multiplicative_gradient(log_likelihood,
                                             max_iterations=1298,
                                             tol=0.08,
+                                            weights_frequency=1,
                                             diagnostic=True)
 ```
 The output `weights` will now return the weights at the maximum number of iterations.
 The default `gap` criteria weights and the train-test weights (if set to true above) are returned in `info`.
 
 The new outputs returned from `info` are
-- `train_test_idx`: `int` of the index where the train-test riteria has stopped the iteration.
-- `weights_train_test`: `jax.Array` of the weights from the train-test stopping criteria, at `train_test_idx`. 
 - `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
 - `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
 
