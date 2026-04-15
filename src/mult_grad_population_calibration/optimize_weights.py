@@ -1,9 +1,156 @@
-import re
-
 import jax
 import jax.numpy as jnp
-
 from mult_grad_population_calibration.utils import train_test_split, normalize_log_likeli_to_likeli
+
+
+def multiplicative_gradient(
+    log_likelihood,
+    tol=1e-2,
+    max_iterations=10000,
+    weights_frequency=0,
+    train_test_key=None,
+    train_test=False,
+    verbose=False,
+    diagnostic=False
+):
+    """
+    optimizes the weights with the multiplicative gradient method.
+
+    Parameters
+    ----------
+    log_likelihood: jax.Array
+        log-likelihood of generating data point i from node j.
+    tol: float
+        tolerance for the stopping criteria
+    max_iterations: int
+        max iterations if stopping criteria isn't met
+    weights_frequency: int
+        if larger than 0, weights are saved at every weights_frequency iterations
+    train_test_key: jax.PRNGKey
+        key for splitting into train, split for train test procedure
+    train_test: bool
+        If true, a stopping index based on train test procedure will be picked,
+        then compared with the gap stopping criteria
+    verbose: bool
+        if true, some print statements will happen every info_frequency iterations
+    diagnostic: bool
+        if true, method will go to max_iterations, returning max iteration weights.
+        This can be used to diagnose how overfit the max iterations are compared to the 
+        weights from train_test or the gap tolerance.
+    Returns
+    -------
+    weights: jax.Array 
+    """
+
+    num_data, num_nodes = log_likelihood.shape
+
+    # Initialize weights
+    weights = (1/num_nodes)*jnp.ones(num_nodes)
+
+    # Convert log likelihood to likelihood via "soft-max"-ish operation
+    likelihood = normalize_log_likeli_to_likeli(log_likelihood)
+
+    # Initialize info tracked
+    info = {"losses": [], "gaps": [], "weights_history": []}
+    
+    # Initialize scaling for gap stopping criteria
+    gap_scale = scaled_gap(compute_grad(
+        weights, likelihood), weights, scale=1.0)
+
+    # Initialize stopping criteria checks.
+    # particularly if not doing train_test, treat this as reached already 
+    reached_gap = False
+    reached_train_test = not train_test
+
+    # Do train test index picking
+    if train_test:
+        if verbose:
+            print("Getting train test stopping index")
+        train_test_idx = multiplicative_gradient_train_test(
+            train_test_key,
+            log_likelihood,
+            wait_time=2,
+            max_iterations=max_iterations,
+            )
+        info["train_test_idx"] = train_test_idx
+        if verbose: 
+            print(f"Validation loss increases at idx: {train_test_idx}")
+    
+    for k in range(max_iterations):
+        # Update info
+        loss = update_info(weights, likelihood)
+        info["losses"].append(loss)
+        # info["your_favorite_stat"].append(...)
+
+        # Check if saving weights
+        if weights_frequency > 0 and k % weights_frequency == 0:
+            info["weights_history"].append(weights)
+
+        # Update grad
+        grad = compute_grad(weights, likelihood)
+
+        # Check stopping criterions
+        gap = scaled_gap(grad, weights, gap_scale)
+        info["gaps"].append(gap)
+
+        # Check current gap against tolerance
+        if not reached_gap and gap < tol:
+            info["gap_idx"] = k
+            info["weights_gap"] = weights
+            reached_gap = True
+            if verbose:
+                print(f"reached gap tolerance, at idx: {k}")
+                print(f"gap: {gap}")
+         
+        # Check current index against the train_test stopping index
+        if train_test:
+            if k == train_test_idx:
+                info["weights_train_test"] = weights
+                reached_train_test = True
+
+        # Check if all stopping criteria met
+        if reached_train_test and reached_gap and not diagnostic:
+            if verbose:
+                print(f"exiting! At iteration: {k}")
+            break
+
+        # Update weights
+        weights = update_weights(weights, grad)
+
+    # Collect info in array format, and save weights and corresponding indices if requested
+    info["final_idx"] = k
+    info["losses"] = jnp.stack(info["losses"])
+    info["gaps"] = jnp.stack(info["gaps"])
+    if weights_frequency > 0:
+        info["weights_history"] = jnp.stack(info["weights_history"])
+        info["weights_idx"] = jnp.arange(len(info["weights_history"]))*weights_frequency
+
+    if not reached_gap:
+        print("Terminated at max iters: ")
+        print("Returned weights & 'info[weights_gap']' are weights at max_iterations")
+        info["weights_gap"] = weights
+        info["gap_idx"] = k
+    return weights, info
+
+
+@jax.jit
+def update_weights(weights, grad):
+    """
+    Updates weights according to multiplicative gradient algorithm.
+    NOTE: this update is positive and sums to 1 without normalization.
+
+    Parameters
+    ----------
+    weights : jax.Array
+        weights of the nodes
+    grad : jax.Array
+        gradient of weights, same shape as weights
+
+    Returns
+    -------
+    updated weights: jax.Array  
+    """
+    return weights*grad
 
 
 @jax.jit
@@ -53,26 +200,6 @@ def compute_loss(weights, likelihood):
     return -jnp.mean(jnp.log(likelihood @ weights))
 
 
-@jax.jit
-def update_weights(weights, grad):
-    """
-    Updates weights according to multiplicative gradient algorithm.
-    NOTE: this update is positive and sums to 1 without normalization.
-
-    Parameters
-    ----------
-    weights : jax.Array
-        weights of the nodes
-    grad : jax.Array
-        gradient of weights, same shape as weights
-
-    Returns
-    -------
-    updated weights: jax.Array  
-    """
-    return weights*grad
-
-
 def update_info(weights, likelihood):
     """
     For computing info/diagnostics of weights during iterations of mult. grad.
@@ -117,138 +244,6 @@ def scaled_gap(grad, weights, scale):
     """
     grad = jnp.where(weights > 0, grad, 0)
     return (jnp.amax(grad) - 1) / scale
-
-
-# TODO: behavior for train_test versus gradient gap
-def multiplicative_gradient(
-    log_likelihood,
-    tol=1e-2,
-    max_iterations=10000,
-    weights_frequency=0,
-    train_test_key=None,
-    train_test=False,
-    verbose=False,
-    diagnostic=False
-):
-    """
-    optimizes the weights with the multiplicative gradient method.
-
-    Parameters
-    ----------
-    log_likelihood: jax.Array
-        log-likelihood of generating data point i from node j.
-    tol: float
-        tolerance for the stopping criteria
-    max_iterations: int
-        max iterations if stopping criteria isn't met
-    weights_frequency: int
-        if larger than 0, weights are saved at every weights_frequency iterations
-    train_test_key: jax.PRNGKey
-        key for splitting into train, split for train test procedure
-    train_test: bool
-        If true, a stopping index based on train test procedure will be picked,
-        then compared with the gap stopping criteria
-    verbose: bool
-        if true, some print statements will happen every info_frequency iterations
-    diagnostic: bool
-        if true, method will go to max_iterations, returning max iteration weights.
-        This can be used to diagnose how overfit the max iterations are compared to the 
-        weights from train_test or the gap tolerance.
-    Returns
-    -------
-    weights: jax.Array 
-    """
-
-    num_data, num_nodes = log_likelihood.shape
-
-    # Initialize weights
-    weights = (1/num_nodes)*jnp.ones(num_nodes)
-
-    # Convert log likelihood to likelihood via "soft-max"-ish operation
-    likelihood = normalize_log_likeli_to_likeli(log_likelihood)
-
-  
-    # Initialize info tracked
-    info = {"losses": [], "gaps": [], "weights": []}
-    
-    # Initialize scaling for gap stopping criteria
-    gap_scale = scaled_gap(compute_grad(
-        weights, likelihood), weights, scale=1.0)
-
-    # Initialize stopping criteria checks.
-    # particularly if not doing train_test, treat this as reached already 
-    reached_gap = False
-    reached_train_test = not train_test
-
-    # Do train test index picking
-    if train_test:
-        if verbose:
-            print("Getting train test stopping index")
-        train_test_idx = multiplicative_gradient_train_test(
-            train_test_key,
-            log_likelihood,
-            wait_time=2,
-            max_iterations=max_iterations,
-            )
-        info["train_test_idx"] = train_test_idx
-        if verbose: 
-            print(f"Validation loss increases at idx: {train_test_idx}")
-    
-    for k in range(max_iterations):
-        # Update info
-        loss = update_info(weights, likelihood)
-        info["losses"].append(loss)
-        # info["your_favorite_stat"].append(...)
-
-        # Check if saving weights
-        if weights_frequency > 0 and k % weights_frequency == 0:
-            info["weights"].append(weights)
-
-        # Update grad
-        grad = compute_grad(weights, likelihood)
-
-        # Check stopping criterions
-        gap = scaled_gap(grad, weights, gap_scale)
-        info["gaps"].append(gap)
-
-        # Check current gap against tolerance
-        if not reached_gap and gap < tol:
-            info["gap_idx"] = k
-            info["weights_gap"] = weights
-            reached_gap = True
-            if verbose:
-                print(f"reached gap tolerance, at idx: {k}")
-                print(f"gap: {gap}")
-         
-        # Check current index against the train_test stopping index
-        if train_test:
-            if k == train_test_idx:
-                info["weights_train_test"] = weights
-                reached_train_test = True
-
-        # Check if all stopping criteria met
-        if reached_train_test and reached_gap and not diagnostic:
-            if verbose:
-                print(f"exiting! At iteration: {k}")
-            break
-
-        # Update weights
-        weights = update_weights(weights, grad)
-
-    # Collect info in array format, and save weights and corresponding indices if requested
-    info["final_idx"] = k
-    info["losses"] = jnp.stack(info["losses"])
-    info["gaps"] = jnp.stack(info["gaps"])
-    if weights_frequency > 0:
-        info["weights"] = jnp.stack(info["weights"])
-        info["weights_idx"] = jnp.arange(len(info["weights"]))*weights_frequency
-
-    if not reached_gap:
-        print("Terminated at max iters: ")
-        print("Returned weights & 'info[weights_gap']' are weights at max_iterations")
-        info["weights_gap"] = weights
-        info["gap_idx"] = k
-    return weights, info
 
 
 def multiplicative_gradient_train_test(

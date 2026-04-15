@@ -90,7 +90,7 @@ def plot_weights_and_info_1d(nodes, info, true_weights=None, final_weights=None,
     if "weights_train_test" in info:
         weights_train_test = info["weights_train_test"]
         train_test_idx = info["train_test_idx"] 
-    weights = info["weights"]
+    weights = info["weights_history"]
     gap_idx = info["gap_idx"]
     
     if plot_initial:
