@@ -20,11 +20,11 @@ def main():
     plt.style.use("my_style.mplstyle") # Use stylefile defined
     plt.style.use("seaborn-v0_8-colorblind") # Use colorscheme from colorblind seaborn
 
-    # Set up gaussian mixture model
+    # Set up 1d gaussian mixture model
     weights = [0.3, 0.7]
     means = [-1.0, 1.0]
     stds = [0.5, 0.5]
-    key = jax.random.key(seed_mixture)
+    key_mixture = jax.random.key(seed_mixture)
 
     # Set up dataset parameters 
     num_samples = 100000
@@ -32,12 +32,12 @@ def main():
     noise_std_dev = 0.5
 
     # Simulate clean data 
-    key, subkey = jax.random.split(key)
-    clean_data = sample_gaussian_mixture_1d(key, subkey, weights, means, stds, num_samples) 
+    key_mixture, subkey_mixture = jax.random.split(key_mixture)
+    clean_data = sample_gaussian_mixture_1d(key_mixture, subkey_mixture, weights, means, stds, num_samples) 
 
     # Add noise
-    key, subkey = jax.random.split(key)
-    data = clean_data + noise_std_dev*jax.random.normal(subkey, shape=clean_data.shape)
+    key_mixture, subkey_mixture = jax.random.split(key_mixture)
+    data = clean_data + noise_std_dev*jax.random.normal(subkey_mixture, shape=clean_data.shape)
     
     # Choosing nodes: for now, just picking evenly spaced ones
     nodes = jnp.linspace(-4, 4, num_nodes)
@@ -54,31 +54,34 @@ def main():
     # Compute log likelihood matrix
     log_likelihood = -1*(data[:, None] - nodes[None, :])**2 / (2*noise_std_dev**2)
 
-    # Compute weights:
-    # "weights_frequency" set to save every 1 iterations, for retrieving later
-    # train_test set to TRUE so that two sets of stopping-criteria are used:
-    #  - stopping when the gradient gap is at tol (weights_gap)
-    #  - stopping based on a train_test split (weights_train_test)
-
-    key = jax.random.key(seed_train_test)
+    ## Compute weights:
+    # "weights_frequency": saving history of weights
+    #   - by default "weights_frequency" is set to 0, no weights history saved.
+    #   - here, we "weights_frequency" to 1 to set to save every 1 iterations, for retrieving later
+    #   - for long runs or likelihoods with many weights, it may be better to save weights less frequently.
+    # "train_test": alternate stopping criteria by holdout
+    #   - for this example, train_test set to TRUE so that two sets of stopping-criteria are used:
+    #       - stopping when the gradient gap is at tol (weights_gap)
+    #       - stopping based on a train_test split (weights_train_test)
+    key_train_test = jax.random.key(seed_train_test)
     weights, info = opt.multiplicative_gradient(log_likelihood, 
                                                 max_iterations=1000, 
                                                 weights_frequency=1,
                                                 tol=1e-2, 
                                                 verbose=True, 
-                                                train_test_key=key, 
+                                                train_test_key=key_train_test, 
                                                 train_test=True)
     
-    # Plot 
+    ## Plot 
     # if wanting to see trends easier, set plot_initial=False, 
     # it drops first iterate (initial weights) from plotting x-axis
     plot_initial=True
     utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial)
     
-    # for saving figures, use:
+    ## for saving figures, use:
     #utils.plot_weights_and_info_1d(nodes, info, true_weights=true_weights, plot_initial=plot_initial, fig_dir=fig_dir)
 
-    # for comparing weights at max_iterations, to early stopped weights:
+    ## for comparing weights at max_iterations, to early stopped weights:
     #  - set diagnostic=True in multiplicative_gradient()
     #  - set final_weights=weights in plot_weights_and_info_1d()
     # example:
@@ -97,31 +100,26 @@ def main():
 
 
 def plot_histogram_data(nodes, clean_data, data, true_weights):
-    plt.figure()
-    plt.plot(nodes, true_weights/(nodes[1] - nodes[0]), label="true density", color="k")
-    plt.hist(clean_data, bins=nodes,density=True, label="hist, clean data", color="C0")
-    plt.ylabel("Probability")
-    plt.xlabel("x")
-    plt.legend()
-    plt.tight_layout()
 
-    plt.figure()
-    plt.plot(nodes, true_weights/(nodes[1] - nodes[0]), label="true density", color="k")
-    plt.hist(data, bins=nodes, density=True, color="C1", label="hist, noisy data")
-    plt.ylabel("Probability")
-    plt.xlabel("x")
-    plt.legend()
-    plt.tight_layout()
+    plot_vals = [(clean_data, "hist, clean data", "C0"), 
+                 (data, "hist, noisy data", "C0")]
+    for i in range(2): 
+        plot_data, plot_label, plot_color = plot_vals[i]
+        plt.figure()
+        plt.plot(nodes, true_weights/(nodes[1] - nodes[0]), label="true density", color="k")
+        plt.hist(plot_data, bins=nodes, density=True, label=plot_label, color=plot_color)
+        plt.ylabel("Probability")
+        plt.xlabel("x")
+        plt.legend()
+        plt.tight_layout()
 
 
-@jax.jit
-def eval_mixture_list(node, weights,means, stds):
-    output = jnp.zeros(len(means))
+def eval_mixture_list(node, weights, means, stds):
+    means = jnp.array(means)
     weights = jnp.array(weights)
-    for idx in range(len(means)):
-        val = -1*(node - means[idx])**2 / (2*(stds[idx])**2) - jnp.log(2*jnp.pi*stds[idx])
-        output = output.at[idx].set(val)
-    return jax.scipy.special.logsumexp(a=output, b=weights)
+    stds = jnp.array(stds)
+    log_gaussians = -1*(node - means)**2 / (2*(stds**2)) - jnp.log(2*jnp.pi*stds)
+    return jax.scipy.special.logsumexp(a=log_gaussians, b=weights)
 
 
 def sample_gaussian_mixture_1d(key_labels, key_noise, weights, means, stds, num_samples):
