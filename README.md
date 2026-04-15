@@ -21,12 +21,12 @@ source VENVS_DIR/mult_grad_population_calibration/bin/activate
     ```
 ## Trying the code
 ### Log Likelihood matrix
-The main function [`muliplicative_gradient`](https://github.com/aevans1/mult_grad_population_calibration/blob/main/src/mult_grad_population_calibration/optimize_weights.py) requires a `log_likelihood` matrix as input. `log_likelihood` must be a `jax.Array` with `num_data` rows  and `num_nodes` columns. It's expected that entry `log_likelihood[i, j]` corresponds to `log p(y_|x_j)` for a data point `y_i`, node `x_j` and some likelihood function `p(y|x)`. For the cryo-EM settings the "data" are the images and the "nodes" are the conformations.
+The main function [`multiplicative_gradient`](https://github.com/aevans1/mult_grad_population_calibration/blob/main/src/mult_grad_population_calibration/optimize_weights.py) requires a `log_likelihood` matrix as input. `log_likelihood` must be a `jax.Array` with `num_data` rows  and `num_nodes` columns. It's expected that entry `log_likelihood[i, j]` corresponds to `log p(y_i|x_j)` for a data point `y_i`, node `x_j` and some likelihood function `p(y|x)`. For the cryo-EM settings the "data" are the images and the "nodes" are the conformations.
 
 **NOTE**: It is crucial that the above matrix is a log-likelihood matrix and not a negative log-likelihood matrix.  
 
 ### Default Options
-The below example code runs the default options, with a default set `max_iterations` and stopping tolerance, and no extra stopping criteria or saving of weights. 
+The below example code runs the default options, with a default max_iterations and stopping tolerance, and no extra stopping criteria or saving of weights. 
 ```
 import jax
 import jax.numpy as jnp
@@ -62,7 +62,7 @@ The output `weights` will now return whichever stopping criteria stopped first.
 Both the default `gap` criteria weights and the train-test weights are returned in `info`.
 
 The new outputs returned from `info` are
-- `train_test_idx`: `int` of the index where the train-test riteria has stopped the iteration.
+- `train_test_idx`: `int` of the index where the train-test criteria has stopped the iteration.
 - `weights_train_test`: `jax.Array` of the weights from the train-test stopping criteria, at `train_test_idx`. 
 - `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
 - `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
@@ -93,14 +93,14 @@ The new outputs returned from `info` are
 - `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
 
 ### Quick Script for Exploration and Diagnostics
-To mess with the all various options on a quick example, you can try messing with the `[example_1d_mixture](https://github.com/aevans1/mult_grad_population_calibration/blob/main/example_1d_mixture.py)script:
+To mess with all the options on a quick example, you can try messing with the [example_1d_mixture](https://github.com/aevans1/mult_grad_population_calibration/blob/main/example_1d_mixture.py) script:
 ```
 python example_1d_mixture.py
 ```
 This is fast running example where its easier to see how the methods work on a 1d example, and what diagnostics are output.
 In that example, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
 
-This example above is a work progress, and will be updated in the future for clarity.
+This example above is a work in progress, and will be updated in the future for clarity.
 ## Related Work
 ### Optimization 
 The baseline optimization method in MGPC is equivalent to the expectation maximization algorithm on just mixture weights for a mixture model, where the parameters in the mixtures are kept fixed. It is not a new technique, there is much historical context mentioned in the papers above. However, reframing the problem can be extremely helpful, as it is easier to analyze than expectation maximization in general. Further, our framework allows for various regularization and cross-validation strategies tailored to noisy datasets such as cryo-EM.
