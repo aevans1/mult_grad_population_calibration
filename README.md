@@ -5,8 +5,6 @@ This repo will contain much more explanation of the methods and diagnostics, so 
 
 For now, the best explanation for our intended context is in the supplementary material of 
 [this paper](https://www.biorxiv.org/content/10.1101/2025.03.27.644168v1), section 2.1 for ensemble reweighting.
-## Documentation
-Stay tuned!
 ## Installation
 - We recommend installing the project in a virtual environment, such as a python `venv`. An example script for creating a venv `mult_grad_population_calibration` in a parent directory `VENVS_DIR`, and then activating the environment, is
 ```
@@ -22,12 +20,85 @@ source VENVS_DIR/mult_grad_population_calibration/bin/activate
     python -m pip install .
     ```
 ## Trying the code
-To mess with the various options, it's easiest to run
+### Log Likelihood matrix
+The main function [`muliplicative_gradient`](https://github.com/aevans1/mult_grad_population_calibration/blob/main/src/mult_grad_population_calibration/optimize_weights.py) requires a `log_likelihood` matrix as input. `log_likelihood` must be a `jax.Array` with `num_data` rows (for data $\{y_i\}_{i=1}^{\text{num_data}})$ and `num_nodes`($\{x_j\}_{j=1}^{\text{num_nodes}}$) columns. It's expected that $\verb{log_likelihood[i, j]} = \log p(y_|x_j),$ for a data point $y_i$ and a node $x_j.$ For the cryo-EM settings the "data" are the images and the "nodes" are the conformations.
+
+**NOTE**: It is crucial that the above matrix is a log-likelihood matrix and not a negative log-likelihood matrix.  
+
+### Default Options
+The below example code runs the default options, with a default set `max_iterations` and stopping tolerance, and no extra stopping criteria or saving of weights. 
+```
+import jax
+import jax.numpy as jnp
+import mult_grad_population_calibration.optimize_weights as opt
+
+# log likelihood is (num_data x num_nodes) jax.numpy array
+weights, info = opt.multiplicative_gradient(log_likelihood)
+```
+The outputs of `multiplicative gradient` are:
+- `weights`: `jax.Array`, the optimized weights from multiplicative gradient.
+- `info`: `Dict` of information from optimization. By default, has the fields:
+  - `losses`: `jax.Array` of the loss (negative marginal log likelihood) values per iteration.
+  - `gaps`: `jax.Array` of the gradient gap at each iteration. This `gap` is used for stopping the iteration.
+  - `weights_history`: `jax.Array` of weights computed at every `weights_frequency` iterations. Empty if `weights_frequency=0`.
+  - `final_idx`: `int` of last index reached in simulation.
+
+### Train-Test Stopping Criteria
+The below example code optimizes with an additional stopping criteria, a `train_test` split used to estimate overfitting.
+```
+import jax
+import jax.numpy as jnp
+import mult_grad_population_calibration.optimize_weights as opt
+
+seed_train_test = 0
+key = jax.random.key(seed_train_test)
+
+# log likelihood is a (num_data x num_nodes) jax.numpy array
+weights, info = opt.multiplicative_gradient(log_likelihood,
+                                            train_test_key=key,
+                                            train_test=True)
+```
+The output `weights` will now return whichever stopping criteria stopped first.
+Both the default `gap` criteria weights and the train-test weights are returned in `info`.
+
+The new outputs returned from `info` are
+- `train_test_idx`: `int` of the index where the train-test riteria has stopped the iteration.
+- `weights_train_test`: `jax.Array` of the weights from the train-test stopping criteria, at `train_test_idx`. 
+- `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
+- `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
+
+### Saving weights and running to max iterations
+The below example code optimizes which runs to max iterations, sets a custom tolerance, and saves weights for checking the history of the optimization.
+```
+import jax
+import jax.numpy as jnp
+import mult_grad_population_calibration.optimize_weights as opt
+
+seed_train_test = 0
+key = jax.random.key(seed_train_test)
+
+# log likelihood is a (num_data x num_nodes) jax.numpy array
+weights, info = opt.multiplicative_gradient(log_likelihood,
+                                            max_iterations=1298,
+                                            tol=0.08,
+                                            diagnostic=True)
+```
+The output `weights` will now return the weights at the maximum number of iterations.
+The default `gap` criteria weights and the train-test weights (if set to true above) are returned in `info`.
+
+The new outputs returned from `info` are
+- `train_test_idx`: `int` of the index where the train-test riteria has stopped the iteration.
+- `weights_train_test`: `jax.Array` of the weights from the train-test stopping criteria, at `train_test_idx`. 
+- `gap_idx`: `int` of the index where the default `gap` criteria stopped the iteration.
+- `weights_gap`:`jax.Array` of the weights from the the default `gap` criteria.
+
+### Quick Script for Exploration and Diagnostics
+To mess with the all various options on a quick example, you can try messing with the `[example_1d_mixture](https://github.com/aevans1/mult_grad_population_calibration/blob/main/example_1d_mixture.py)script:
 ```
 python example_1d_mixture.py
 ```
-to see how this works on a 1d example, and what diagnostics are output.
-In this example, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
+This is fast running example where its easier to see how the methods work on a 1d example, and what diagnostics are output.
+In that example, the un-observed true data is sampled from a gaussian mixture in 1-D, and the observed data has had gaussian noise added. 
 
 This example above is a work progress, and will be updated in the future for clarity.
 ## Related Work
