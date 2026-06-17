@@ -119,6 +119,70 @@ def scaled_gap(grad, weights, scale):
     return (jnp.amax(grad) - 1) / scale
 
 
+def cross_validated_multiplcative_gradient(
+    log_likelihood,
+    tol=1e-2,
+    acceptable_weights_error = 0.05,
+    n_subsets=5,
+    max_iterations=10000,
+    weights_frequency=0,
+    train_test_key=None,
+    train_test=False,
+    verbose=False,
+    diagnostic=False
+):
+    """
+    optimizes the weights with the multiplicative gradient method 
+    and check statistical error with cross validation between particle subsets.
+
+    Parameters
+    ----------
+    log_likelihood: jax.Array
+        log-likelihood of generating data point i from node j.
+    tol: float
+        tolerance for the stopping criteria
+    max_iterations: int
+        max iterations if stopping criteria isn't met
+    weights_frequency: int
+        if larger than 0, weights are saved at every weights_frequency iterations
+    train_test_key: jax.PRNGKey
+        key for splitting into train, split for train test procedure
+    train_test: bool
+        If true, a stopping index based on train test procedure will be picked,
+        then compared with the gap stopping criteria
+    verbose: bool
+        if true, some print statements will happen every info_frequency iterations
+    diagnostic: bool
+        if true, method will go to max_iterations, returning max iteration weights.
+        This can be used to diagnose how overfit the max iterations are compared to the 
+        weights from train_test or the gap tolerance.
+    Returns
+    -------
+    weights: jax.Array, error: jax.Array, accepted: bool
+    """
+
+    # make random subsets
+    print(log_likelihood.shape)
+    subsets = jax.random.choice(train_test_key, log_likelihood.shape[0], shape=(n_subsets, log_likelihood.shape[0]//n_subsets), replace=False)
+    subset_log_likelihoods = jnp.stack([log_likelihood[subset,:] for subset in subsets])
+
+    # run multiplicative gradient on each subset
+
+    #subset_weights, subset_infos = jax.vmap(multiplicative_gradient, in_axes=(0, None, None, None, None, None, None, None))(subset_log_likelihoods, tol, max_iterations, weights_frequency, None, False, verbose, diagnostic)
+    # pre allocate subset_weights array
+    subset_weights = jnp.zeros((n_subsets, log_likelihood.shape[1]))
+    for i in range(n_subsets):
+        subset_weights_i, _ = multiplicative_gradient(subset_log_likelihoods[i], tol, max_iterations, weights_frequency, None, False, verbose, diagnostic)
+        subset_weights = subset_weights.at[i].set(subset_weights_i)
+
+    if jnp.var(subset_weights, axis=0).max() > acceptable_weights_error:
+        accepted = False
+    else:
+        accepted = True
+    return jnp.mean(subset_weights, axis=0), jnp.var(subset_weights, axis=0),  accepted
+
+
+
 # TODO: behavior for train_test versus gradient gap
 def multiplicative_gradient(
     log_likelihood,
@@ -282,6 +346,11 @@ def multiplicative_gradient_train_test(
     stopping_idx: int
     """
     num_data, num_nodes = log_likelihood.shape
+    # check that log likelihoods are all positive
+    # print out indices of negative log likelihoods for debugging
+    #print(log_likelihood)
+    #if jnp.any(log_likelihood > 0):
+    #    raise ValueError("Log likelihoods must be negative for reweighting.")
     
     log_likelihood_train, log_likelihood_test, _, _ = train_test_split(key,
                                                                       log_likelihood,
